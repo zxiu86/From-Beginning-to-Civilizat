@@ -256,6 +256,7 @@ class CommunicationEngine:
         return {
             "token_context_hits": {f"{t}|{c}": cnt for (t, c), cnt in self.token_context_hits.items()},
             "token_adopters": {f"{t}|{c}": sorted(ids) for (t, c), ids in self.token_adopters.items()},
+            "recent_emissions": [asdict(em) for em in self.recent_emissions],
             "milestones": {
                 "first_communication_tick": self.milestones.first_communication_tick,
                 "first_repeated_signal_tick": self.milestones.first_repeated_signal_tick,
@@ -281,6 +282,7 @@ class CommunicationEngine:
         for k, ids in data.get("token_adopters", {}).items():
             t_s, c = k.split("|", 1)
             eng.token_adopters[(int(t_s), c)] = set(int(i) for i in ids)
+        eng.recent_emissions = [VocalEmission(**em) for em in data.get("recent_emissions", [])]
         m = data.get("milestones", {})
         eng.milestones = LanguageMilestones(
             first_communication_tick=m.get("first_communication_tick"),

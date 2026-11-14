@@ -40,6 +40,7 @@ class SimulationEngine:
         history: HistoryKnowledgeEngine,
         rng: random.Random,
         backend_name: str,
+        timeline_series: Optional[List[dict]] = None,
     ) -> None:
         self.world_id = world_id
         self.config = config
@@ -52,6 +53,7 @@ class SimulationEngine:
         self.rng = rng
         self.backend_name = backend_name
         self.evolution = EvolutionEngine()
+        self.timeline_series: List[dict] = list(timeline_series or [])
 
         self._stop_requested = False
         self._stop_reason: Optional[str] = None
@@ -114,7 +116,7 @@ class SimulationEngine:
             ),
         )
 
-        return cls(
+        engine = cls(
             world_id=world_id,
             config=config,
             clock=clock,
@@ -126,6 +128,8 @@ class SimulationEngine:
             rng=rng,
             backend_name=backend_name,
         )
+        engine._record_timeline_point()
+        return engine
 
     @classmethod
     def resume_from_checkpoint(cls, checkpoint_dir: Path, require_torch: bool = False) -> "SimulationEngine":
@@ -144,7 +148,7 @@ class SimulationEngine:
             society,
             history,
             rng,
-            _manifest,
+            manifest,
         ) = PersistenceEngine.load_checkpoint(checkpoint_dir, require_torch=require_torch)
 
         return cls(
@@ -158,6 +162,7 @@ class SimulationEngine:
             history=history,
             rng=rng,
             backend_name=backend_name,
+            timeline_series=manifest.get("restored_timeline_series", []),
         )
 
     def install_signal_handlers(self) -> None:
@@ -284,6 +289,41 @@ class SimulationEngine:
             rng=self.rng,
         )
 
+        # 4. Read-only macro telemetry point every 30 ticks (never touches RNG or simulation state)
+        if tick % 30 == 0:
+            self._record_timeline_point()
+
+    def _record_timeline_point(self) -> None:
+        living = self.agents.living_agents()
+        crime_metrics = self.society.crime_and_stability_metrics(self.clock.tick, living)
+        eco = self.world.ecosystem_summary()
+        lang = self.comm.summary()
+        active_tokens = len({tok for ag in living.values() for tok in ag.lexicon.keys()})
+        point = {
+            "tick": self.clock.tick,
+            "sim_date": self.clock.sim_date_str(),
+            "sim_year": self.clock.year,
+            "season": self.clock.season,
+            "living_count": len(living),
+            "deceased_count": len(self.agents.all_agents) - len(living),
+            "births_total": sum(1 for a in self.agents.all_agents.values() if a.birth_tick > 0),
+            "food_total": round(eco["total_food_biomass"], 1),
+            "water_total": round(sum(self.world.water), 1),
+            "wood_total": round(eco["total_wood_biomass"], 1),
+            "herbivores": eco["herbivores_alive"],
+            "predators": eco["predators_alive"],
+            "active_tokens": active_tokens,
+            "protowords": lang["stable_protowords_count"],
+            "groups_count": crime_metrics["active_groups"],
+            "crime_rate_per_1000": crime_metrics["recent_180d_crimes_per_1000"],
+            "crimes_per_1000_pop": crime_metrics["crimes_per_1000_pop"],
+            "barters": crime_metrics["total_barters"],
+        }
+        self.timeline_series.append(point)
+        if len(self.timeline_series) > 600:
+            # Keep every point for recent history and downsample older tail safely
+            self.timeline_series = self.timeline_series[::2] + self.timeline_series[-100:]
+
     def current_metrics(self) -> dict:
         living = self.agents.living_agents()
         crime_metrics = self.society.crime_and_stability_metrics(self.clock.tick, living)
@@ -310,6 +350,7 @@ class SimulationEngine:
             rng=self.rng,
             backend_name=self.backend_name,
             metrics_snapshot=self.current_metrics(),
+            timeline_series=self.timeline_series,
         )
 
     def run(

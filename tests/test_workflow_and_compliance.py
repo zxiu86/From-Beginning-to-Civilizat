@@ -38,6 +38,16 @@ class TestWorkflowAndCompliance(unittest.TestCase):
         self.assertNotIn("gh workflow run", text)
         self.assertNotIn("/dispatches", text)
 
+        # Also ensure pages.yml (if present) has strictly manual workflow_dispatch only
+        pages_wf = REPO_ROOT / ".github" / "workflows" / "pages.yml"
+        if pages_wf.exists():
+            pages_text = pages_wf.read_text(encoding="utf-8")
+            self.assertIn("workflow_dispatch:", pages_text)
+            pages_on = re.search(r"^on:\s*\n((?:[ \t]+.*\n)*)", pages_text, flags=re.MULTILINE)
+            self.assertIsNotNone(pages_on)
+            for trig in forbidden_triggers:
+                self.assertNotIn(trig, pages_on.group(1), f"Forbidden trigger '{trig}' found in pages.yml")
+
     def test_19_zero_external_llm_or_paid_api_imports(self) -> None:
         forbidden_modules = {
             "openai",

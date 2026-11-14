@@ -43,3 +43,11 @@
 - **الموارد (CPU / RAM)**: تعمل Runners القياسية عادة على 2–4 أنوية CPU و7–16 GB RAM دون GPU. يفحص المحرك الموارد تلقائياً عند البدء (`detect_hardware_budget`) ويضبط خيوط PyTorch CPU ويُجري تحديثات التعلم على دفعات دورية لتجنب اختناق المعالج.
 - **صلاحية Artifacts**: مدة الاحتفاظ الافتراضية مضبوطة على `90 يوماً` (`retention-days: 90`). للاستمرار طويل الأمد لأكثر من 90 يوماً، نفّذ تشغيل استئناف دوري قبل انتهاء 90 يوماً أو حمّل نسخة محلية من Artifact.
 - **المستودع العام**: لا توجد أي مفاتيح API أو كلمات مرور في المستودع، ولا تُرفع ملفات Checkpoints إلى سجل Git مباشرة (محظورة عبر `.gitignore`).
+
+---
+
+## 5. موقع المراقبة (Civilization Observatory) والنشر عبر GitHub Pages
+
+- **تصفح اللقطات محلياً**: بعد تنزيل Artifact `sim-logs-<RUN_ID>` من GitHub Actions، افتح موقع Civilization Observatory واضغط **رفع `observatory_export.json`** لعرض العالم ثلاثي الأبعاد والذاكرة والأنساب والتاريخ ثلاثي الطبقات والمنظور الشخصي (FPV).
+- **النشر اليدوي على GitHub Pages**: يتضمن المستودع `.github/workflows/pages.yml` الذي يعمل **يدوياً فقط (`workflow_dispatch`)**. يمكنك إدخال `sim_run_id` اختيارياً أثناء النشر لجلب أحدث `observatory_export.json` إلى `public/data/latest_snapshot.json` وتضمينه كـ Snapshot منشور في الموقع الساكن.
+

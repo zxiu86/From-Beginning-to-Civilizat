@@ -92,6 +92,35 @@ class TestPersistenceAndResume(unittest.TestCase):
             with self.assertRaises(CheckpointIntegrityError):
                 SimulationEngine.resume_from_checkpoint(ckpt_dir)
 
+    def test_observatory_export_v2_schema_and_fpv_isolation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            ckpt_dir = Path(tmp) / "ckpt_obs"
+            cfg = SimulationConfig(seed=777, initial_population=30)
+            engine = SimulationEngine.create_new(cfg)
+            for _ in range(32):
+                engine.step_tick()
+
+            engine.save_checkpoint(ckpt_dir)
+            obs = json.loads((ckpt_dir / "observatory_export.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(obs["export_schema_version"], "2.0.0")
+            self.assertIn("engine_capabilities", obs)
+            self.assertFalse(obs["engine_capabilities"]["has_buildings_grid"])
+            self.assertIn("world_terrain", obs)
+            self.assertEqual(len(obs["world_terrain"]["elevation"]), obs["world_terrain"]["cols"] * obs["world_terrain"]["rows"])
+            self.assertIn("fauna", obs["ecosystem"])
+            self.assertIn("living_agents_full", obs)
+            self.assertIn("deceased_agents_archive", obs)
+            self.assertGreaterEqual(len(obs["timeline_series"]), 2)
+
+            # Verify every living agent includes bounded local_perception and NEVER exposes context_tag in heard_emissions
+            for ag in obs["living_agents_full"]:
+                lp = ag["local_perception"]
+                self.assertGreater(lp["vision_radius_m"], 0)
+                self.assertIsInstance(lp["visible_agent_ids"], list)
+                for em in lp["heard_emissions"]:
+                    self.assertNotIn("context_tag", em)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,77 @@
+name: Deploy Civilization Observatory (Manual Pages)
+
+on:
+  workflow_dispatch:
+    inputs:
+      sim_run_id:
+        description: "Optional GitHub Simulation Run ID (pulls observatory_export.json into public/data/latest_snapshot.json)"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Optional — Fetch real observatory_export.json from simulation run
+        if: ${{ inputs.sim_run_id != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: sim-logs-${{ inputs.sim_run_id }}
+          run-id: ${{ inputs.sim_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: tmp_sim_logs
+
+      - name: Publish fetched snapshot to public/data/latest_snapshot.json
+        if: ${{ inputs.sim_run_id != '' }}
+        run: |
+          mkdir -p public/data
+          if [ -f tmp_sim_logs/observatory_export.json ]; then
+            cp tmp_sim_logs/observatory_export.json public/data/latest_snapshot.json
+          else
+            echo "ERROR: observatory_export.json not found in sim-logs-${{ inputs.sim_run_id }}"
+            exit 1
+          fi
+
+      - name: Build static Civilization Observatory
+        env:
+          NODE_ENV: "production"
+          GITHUB_PAGES: "true"
+          NEXT_PUBLIC_BASE_PATH: "/${{ github.event.repository.name }}"
+        run: npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./out
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

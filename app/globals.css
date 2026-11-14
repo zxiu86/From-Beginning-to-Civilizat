@@ -1,1 +1,16 @@
 @import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-arabic), var(--font-latin), system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0b0f14;
+  color: #e6edf3;
+}

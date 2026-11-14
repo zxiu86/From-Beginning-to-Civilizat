@@ -13,6 +13,7 @@ import type {
 import {ActorsManager} from '@/lib/three/actors';
 import {buildWorldProps, type PropsBundle} from '@/lib/three/instanced-props';
 import {
+  animateAtmosphere,
   applyWeatherAndLighting,
   buildTerrainGroup,
   createAtmosphereRig,
@@ -20,6 +21,7 @@ import {
   sampleElevationY,
   simToWorldXZ,
   type AtmosphereRig,
+  type TerrainBundle,
 } from '@/lib/three/terrain';
 
 interface WorldCanvas3DProps {
@@ -89,8 +91,7 @@ export default function WorldCanvas3D({
     controls: OrbitControls;
     rig: AtmosphereRig;
     actors: ActorsManager;
-    terrainCleanup: (() => void) | null;
-    terrainGroup: THREE.Group | null;
+    terrainBundle: TerrainBundle | null;
     propsBundle: PropsBundle | null;
     fpvHorizonRing: THREE.Mesh;
     replayBeacon: THREE.Group;
@@ -141,7 +142,7 @@ export default function WorldCanvas3D({
     scene.environment = envTex;
 
     const camera = new THREE.PerspectiveCamera(48, width / height, 1.0, 9500);
-    camera.position.set(0, 740, 1280);
+    camera.position.set(0, 680, 1220);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
@@ -197,8 +198,7 @@ export default function WorldCanvas3D({
       controls,
       rig,
       actors,
-      terrainCleanup: null as (() => void) | null,
-      terrainGroup: null as THREE.Group | null,
+      terrainBundle: null as TerrainBundle | null,
       propsBundle: null as PropsBundle | null,
       fpvHorizonRing,
       replayBeacon,
@@ -282,6 +282,8 @@ export default function WorldCanvas3D({
       const elapsedS = (now - startTime) / 1000;
 
       actors.tick(elapsedS, dt);
+      rt.terrainBundle?.tick(elapsedS);
+      animateAtmosphere(rt.rig, dt);
 
       if (replayBeacon.visible) {
         const pulse = 1 + Math.sin(elapsedS * 4.0) * 0.14;
@@ -322,8 +324,9 @@ export default function WorldCanvas3D({
       renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       controls.dispose();
 
-      if (rt.terrainCleanup) rt.terrainCleanup();
+      if (rt.terrainBundle) rt.terrainBundle.dispose();
       if (rt.propsBundle) rt.propsBundle.dispose();
+      rt.rig.dispose();
       actors.dispose();
       fpvRingGeo.dispose();
       fpvRingMat.dispose();
@@ -347,16 +350,18 @@ export default function WorldCanvas3D({
       // Build subtle calm barren backdrop terrain when in empty state
       const emptyKey = `empty_${quality}`;
       if (rt.lastTerrainWorldKey !== emptyKey) {
-        if (rt.terrainGroup) rt.scene.remove(rt.terrainGroup);
-        if (rt.terrainCleanup) rt.terrainCleanup();
+        if (rt.terrainBundle) {
+          rt.scene.remove(rt.terrainBundle.group);
+          rt.terrainBundle.dispose();
+          rt.terrainBundle = null;
+        }
         if (rt.propsBundle) {
           rt.scene.remove(rt.propsBundle.group);
           rt.propsBundle.dispose();
           rt.propsBundle = null;
         }
         const built = buildTerrainGroup(null, 'spring', quality === 'high');
-        rt.terrainGroup = built.group;
-        rt.terrainCleanup = built.dispose;
+        rt.terrainBundle = built;
         rt.scene.add(built.group);
         rt.lastTerrainWorldKey = emptyKey;
       }
@@ -382,8 +387,10 @@ export default function WorldCanvas3D({
 
     const terrainKey = `${snapshot.world_id}_${snapshot.clock.tick}_${snapshot.clock.season}_${quality}`;
     if (rt.lastTerrainWorldKey !== terrainKey) {
-      if (rt.terrainGroup) rt.scene.remove(rt.terrainGroup);
-      if (rt.terrainCleanup) rt.terrainCleanup();
+      if (rt.terrainBundle) {
+        rt.scene.remove(rt.terrainBundle.group);
+        rt.terrainBundle.dispose();
+      }
       if (rt.propsBundle) {
         rt.scene.remove(rt.propsBundle.group);
         rt.propsBundle.dispose();
@@ -394,8 +401,7 @@ export default function WorldCanvas3D({
         snapshot.clock.season,
         quality === 'high',
       );
-      rt.terrainGroup = built.group;
-      rt.terrainCleanup = built.dispose;
+      rt.terrainBundle = built;
       rt.scene.add(built.group);
 
       const props = buildWorldProps(
@@ -543,7 +549,7 @@ export default function WorldCanvas3D({
     const centerY = sampleElevationY(snap?.world_terrain ?? null, wM * 0.5, hM * 0.5);
 
     rt.flyTarget.set(0, centerY, 0);
-    rt.flyPos.set(0, 740, 1280);
+    rt.flyPos.set(0, 680, 1220);
     rt.flyActive = true;
   }, [resetSignal]);
 

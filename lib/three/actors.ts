@@ -9,24 +9,38 @@ import {sampleElevationY, simToWorldXZ} from './terrain';
 
 interface SharedResources {
   headGeo: THREE.SphereGeometry;
+  hairCapGeo: THREE.SphereGeometry;
+  neckGeo: THREE.CylinderGeometry;
   torsoGeo: THREE.CylinderGeometry;
-  limbGeo: THREE.CylinderGeometry;
+  sashGeo: THREE.CylinderGeometry;
+  armGeo: THREE.CylinderGeometry;
+  legGeo: THREE.CylinderGeometry;
   bellyGeo: THREE.SphereGeometry;
+  shadowDiscGeo: THREE.CircleGeometry;
   hitProxyGeo: THREE.CylinderGeometry;
   ringGeo: THREE.RingGeometry;
   cairnGeo: THREE.ConeGeometry;
+  cairnMidGeo: THREE.DodecahedronGeometry;
   cairnBaseGeo: THREE.CylinderGeometry;
-  faunaBodyGeo: THREE.BoxGeometry;
-  faunaHeadGeo: THREE.BoxGeometry;
+  faunaBodyGeo: THREE.CapsuleGeometry;
+  faunaNeckGeo: THREE.CylinderGeometry;
+  faunaHeadGeo: THREE.DodecahedronGeometry;
+  faunaSnoutGeo: THREE.BoxGeometry;
   faunaLegGeo: THREE.CylinderGeometry;
+  faunaTailGeo: THREE.CylinderGeometry;
   hornGeo: THREE.ConeGeometry;
+  earGeo: THREE.ConeGeometry;
   hitMat: THREE.MeshBasicMaterial;
-  skinFMat: THREE.MeshStandardMaterial;
-  skinMMat: THREE.MeshStandardMaterial;
+  shadowDiscMat: THREE.MeshBasicMaterial;
+  skinMats: THREE.MeshStandardMaterial[];
+  hairDarkMat: THREE.MeshStandardMaterial;
+  hairBrownMat: THREE.MeshStandardMaterial;
+  hairElderMat: THREE.MeshStandardMaterial;
   tunicHealthyF: THREE.MeshStandardMaterial;
   tunicHealthyM: THREE.MeshStandardMaterial;
   tunicStrained: THREE.MeshStandardMaterial;
   tunicCritical: THREE.MeshStandardMaterial;
+  sashMat: THREE.MeshStandardMaterial;
   limbMat: THREE.MeshStandardMaterial;
   voiceRingMat: THREE.MeshBasicMaterial;
   selectRingMat: THREE.MeshBasicMaterial;
@@ -37,47 +51,85 @@ interface SharedResources {
 }
 
 function createSharedResources(): SharedResources {
-  const headGeo = new THREE.SphereGeometry(0.68, 10, 8);
-  const torsoGeo = new THREE.CylinderGeometry(0.62, 0.52, 1.85, 8);
-  const limbGeo = new THREE.CylinderGeometry(0.2, 0.16, 1.45, 6);
-  const bellyGeo = new THREE.SphereGeometry(0.55, 8, 6);
+  const headGeo = new THREE.SphereGeometry(0.64, 14, 12);
+  const hairCapGeo = new THREE.SphereGeometry(0.67, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.56);
+  const neckGeo = new THREE.CylinderGeometry(0.22, 0.25, 0.34, 8);
+  const torsoGeo = new THREE.CylinderGeometry(0.68, 0.52, 1.82, 10);
+  const sashGeo = new THREE.CylinderGeometry(0.54, 0.56, 0.28, 10);
+  const armGeo = new THREE.CylinderGeometry(0.18, 0.14, 1.48, 8);
+  const legGeo = new THREE.CylinderGeometry(0.22, 0.16, 1.52, 8);
+  const bellyGeo = new THREE.SphereGeometry(0.56, 10, 8);
+
+  const shadowDiscGeo = new THREE.CircleGeometry(1.15, 16);
+  shadowDiscGeo.rotateX(-Math.PI / 2);
+
   const hitProxyGeo = new THREE.CylinderGeometry(2.1, 2.1, 5.2, 8);
   hitProxyGeo.translate(0, 2.6, 0);
 
-  const ringGeo = new THREE.RingGeometry(2.3, 2.95, 24);
+  const ringGeo = new THREE.RingGeometry(2.3, 2.95, 28);
   ringGeo.rotateX(-Math.PI / 2);
 
-  const cairnGeo = new THREE.ConeGeometry(0.95, 1.35, 6);
-  cairnGeo.translate(0, 0.8, 0);
-  const cairnBaseGeo = new THREE.CylinderGeometry(1.2, 1.35, 0.35, 7);
-  cairnBaseGeo.translate(0, 0.175, 0);
+  const cairnBaseGeo = new THREE.CylinderGeometry(1.25, 1.42, 0.38, 7);
+  cairnBaseGeo.translate(0, 0.19, 0);
+  const cairnMidGeo = new THREE.DodecahedronGeometry(0.88, 0);
+  cairnMidGeo.translate(0, 0.72, 0);
+  const cairnGeo = new THREE.ConeGeometry(0.75, 1.05, 6);
+  cairnGeo.translate(0, 1.42, 0);
 
-  const faunaBodyGeo = new THREE.BoxGeometry(2.4, 1.15, 1.1);
-  const faunaHeadGeo = new THREE.BoxGeometry(0.85, 0.72, 0.78);
-  const faunaLegGeo = new THREE.CylinderGeometry(0.14, 0.12, 1.1, 5);
-  const hornGeo = new THREE.ConeGeometry(0.12, 0.75, 4);
+  const faunaBodyGeo = new THREE.CapsuleGeometry(0.62, 1.45, 6, 10);
+  faunaBodyGeo.rotateZ(Math.PI / 2);
+  const faunaNeckGeo = new THREE.CylinderGeometry(0.28, 0.42, 0.95, 8);
+  const faunaHeadGeo = new THREE.DodecahedronGeometry(0.52, 1);
+  const faunaSnoutGeo = new THREE.BoxGeometry(0.56, 0.34, 0.38);
+  const faunaLegGeo = new THREE.CylinderGeometry(0.15, 0.1, 1.18, 7);
+  const faunaTailGeo = new THREE.CylinderGeometry(0.08, 0.05, 0.95, 6);
+  const hornGeo = new THREE.ConeGeometry(0.11, 0.82, 5);
+  const earGeo = new THREE.ConeGeometry(0.12, 0.34, 4);
 
   return {
     headGeo,
+    hairCapGeo,
+    neckGeo,
     torsoGeo,
-    limbGeo,
+    sashGeo,
+    armGeo,
+    legGeo,
     bellyGeo,
+    shadowDiscGeo,
     hitProxyGeo,
     ringGeo,
     cairnGeo,
+    cairnMidGeo,
     cairnBaseGeo,
     faunaBodyGeo,
+    faunaNeckGeo,
     faunaHeadGeo,
+    faunaSnoutGeo,
     faunaLegGeo,
+    faunaTailGeo,
     hornGeo,
+    earGeo,
     hitMat: new THREE.MeshBasicMaterial({transparent: true, opacity: 0, depthWrite: false}),
-    skinFMat: new THREE.MeshStandardMaterial({color: '#d2a17c', roughness: 0.78}),
-    skinMMat: new THREE.MeshStandardMaterial({color: '#c28d68', roughness: 0.78}),
-    tunicHealthyF: new THREE.MeshStandardMaterial({color: '#3498a8', roughness: 0.82}),
-    tunicHealthyM: new THREE.MeshStandardMaterial({color: '#4e8c57', roughness: 0.82}),
+    shadowDiscMat: new THREE.MeshBasicMaterial({
+      color: '#06080b',
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+    }),
+    skinMats: [
+      new THREE.MeshStandardMaterial({color: '#d8aa86', roughness: 0.74}),
+      new THREE.MeshStandardMaterial({color: '#c28c64', roughness: 0.76}),
+      new THREE.MeshStandardMaterial({color: '#9e6c4b', roughness: 0.78}),
+    ],
+    hairDarkMat: new THREE.MeshStandardMaterial({color: '#1e1a18', roughness: 0.92}),
+    hairBrownMat: new THREE.MeshStandardMaterial({color: '#4f3524', roughness: 0.9}),
+    hairElderMat: new THREE.MeshStandardMaterial({color: '#adb5bd', roughness: 0.88}),
+    tunicHealthyF: new THREE.MeshStandardMaterial({color: '#2e8899', roughness: 0.84}),
+    tunicHealthyM: new THREE.MeshStandardMaterial({color: '#467d4e', roughness: 0.84}),
     tunicStrained: new THREE.MeshStandardMaterial({color: '#d99b26', roughness: 0.8}),
     tunicCritical: new THREE.MeshStandardMaterial({color: '#cf4842', roughness: 0.78}),
-    limbMat: new THREE.MeshStandardMaterial({color: '#3b332d', roughness: 0.88}),
+    sashMat: new THREE.MeshStandardMaterial({color: '#4e3928', roughness: 0.9}),
+    limbMat: new THREE.MeshStandardMaterial({color: '#342c26', roughness: 0.88}),
     voiceRingMat: new THREE.MeshBasicMaterial({
       color: '#57b8d8',
       side: THREE.DoubleSide,
@@ -96,9 +148,9 @@ function createSharedResources(): SharedResources {
       transparent: true,
       opacity: 0.88,
     }),
-    cairnMat: new THREE.MeshStandardMaterial({color: '#6b7280', roughness: 0.95}),
-    herbivoreMat: new THREE.MeshStandardMaterial({color: '#a3895d', roughness: 0.86}),
-    predatorMat: new THREE.MeshStandardMaterial({color: '#8c3c32', roughness: 0.82}),
+    cairnMat: new THREE.MeshStandardMaterial({color: '#6b7278', roughness: 0.95}),
+    herbivoreMat: new THREE.MeshStandardMaterial({color: '#9c7f53', roughness: 0.84}),
+    predatorMat: new THREE.MeshStandardMaterial({color: '#733128', roughness: 0.8}),
   };
 }
 
@@ -106,6 +158,7 @@ export interface LivingActorHandle {
   agentId: number;
   root: THREE.Group;
   bodyPivot: THREE.Group;
+  hairMesh: THREE.Mesh;
   torsoMesh: THREE.Mesh;
   leftArm: THREE.Mesh;
   rightArm: THREE.Mesh;
@@ -159,30 +212,60 @@ export class ActorsManager {
     const bodyPivot = new THREE.Group();
     root.add(bodyPivot);
 
-    const skinMat = agent.sex === 'F' ? this.res.skinFMat : this.res.skinMMat;
+    const skinMat = this.res.skinMats[Math.abs(agent.agent_id) % this.res.skinMats.length];
     const head = new THREE.Mesh(this.res.headGeo, skinMat);
-    head.position.set(0, 3.65, 0);
+    head.position.set(0, 3.68, 0);
     head.castShadow = highQuality;
 
+    const hairMat = agent.agent_id % 3 === 0 ? this.res.hairBrownMat : this.res.hairDarkMat;
+    const hairMesh = new THREE.Mesh(this.res.hairCapGeo, hairMat);
+    hairMesh.position.set(0, 3.74, -0.03);
+    hairMesh.rotation.x = -0.18;
+    hairMesh.castShadow = highQuality;
+
+    const neck = new THREE.Mesh(this.res.neckGeo, skinMat);
+    neck.position.set(0, 3.12, 0);
+
     const torso = new THREE.Mesh(this.res.torsoGeo, this.res.tunicHealthyM);
-    torso.position.set(0, 2.25, 0);
+    torso.position.set(0, 2.24, 0);
     torso.castShadow = highQuality;
 
-    const leftArm = new THREE.Mesh(this.res.limbGeo, skinMat);
-    leftArm.position.set(-0.82, 2.25, 0);
-    const rightArm = new THREE.Mesh(this.res.limbGeo, skinMat);
-    rightArm.position.set(0.82, 2.25, 0);
+    const sash = new THREE.Mesh(this.res.sashGeo, this.res.sashMat);
+    sash.position.set(0, 1.56, 0);
 
-    const leftLeg = new THREE.Mesh(this.res.limbGeo, this.res.limbMat);
-    leftLeg.position.set(-0.32, 0.78, 0);
-    const rightLeg = new THREE.Mesh(this.res.limbGeo, this.res.limbMat);
-    rightLeg.position.set(0.32, 0.78, 0);
+    const leftArm = new THREE.Mesh(this.res.armGeo, skinMat);
+    leftArm.position.set(-0.84, 2.22, 0);
+    leftArm.castShadow = highQuality;
+    const rightArm = new THREE.Mesh(this.res.armGeo, skinMat);
+    rightArm.position.set(0.84, 2.22, 0);
+    rightArm.castShadow = highQuality;
+
+    const leftLeg = new THREE.Mesh(this.res.legGeo, this.res.limbMat);
+    leftLeg.position.set(-0.3, 0.78, 0);
+    leftLeg.castShadow = highQuality;
+    const rightLeg = new THREE.Mesh(this.res.legGeo, this.res.limbMat);
+    rightLeg.position.set(0.3, 0.78, 0);
+    rightLeg.castShadow = highQuality;
 
     const bellyMesh = new THREE.Mesh(this.res.bellyGeo, this.res.tunicHealthyF);
     bellyMesh.position.set(0, 1.9, 0.35);
     bellyMesh.visible = false;
 
-    bodyPivot.add(head, torso, leftArm, rightArm, leftLeg, rightLeg, bellyMesh);
+    const contactShadow = new THREE.Mesh(this.res.shadowDiscGeo, this.res.shadowDiscMat);
+    contactShadow.position.set(0, 0.08, 0);
+
+    bodyPivot.add(
+      head,
+      hairMesh,
+      neck,
+      torso,
+      sash,
+      leftArm,
+      rightArm,
+      leftLeg,
+      rightLeg,
+      bellyMesh,
+    );
 
     const voiceRing = new THREE.Mesh(this.res.ringGeo, this.res.voiceRingMat);
     voiceRing.position.set(0, 0.28, 0);
@@ -201,12 +284,13 @@ export class ActorsManager {
     const hitMesh = new THREE.Mesh(this.res.hitProxyGeo, this.res.hitMat);
     hitMesh.userData = {kind: 'agent', agentId: agent.agent_id};
 
-    root.add(voiceRing, selectRing, replayRing, hitMesh);
+    root.add(contactShadow, voiceRing, selectRing, replayRing, hitMesh);
 
     return {
       agentId: agent.agent_id,
       root,
       bodyPivot,
+      hairMesh,
       torsoMesh: torso,
       leftArm,
       rightArm,
@@ -251,6 +335,7 @@ export class ActorsManager {
       handle.targetPos.set(wx, wy, wz);
       if (isNew) {
         handle.root.position.copy(handle.targetPos);
+        handle.root.rotation.y = (ag.agent_id * 2.13) % (Math.PI * 2);
       }
 
       const stageScale =
@@ -263,6 +348,14 @@ export class ActorsManager {
               : 1.04;
       handle.baseScale = stageScale;
       handle.bodyPivot.scale.setScalar(stageScale);
+
+      // Update elder silver hair
+      if (ag.life_stage === 'elder') {
+        handle.hairMesh.material = this.res.hairElderMat;
+      } else {
+        handle.hairMesh.material =
+          ag.agent_id % 3 === 0 ? this.res.hairBrownMat : this.res.hairDarkMat;
+      }
 
       // Update vitality tunic material
       if (ag.health < 0.38 || ag.hunger > 0.85 || ag.thirst > 0.85) {
@@ -287,7 +380,7 @@ export class ActorsManager {
       }
     }
 
-    // 2. Deceased Memorial Cairns (cap visible cairns on huge histories to last 180 for clarity, preserving inspector access to all)
+    // 2. Deceased Memorial Cairns (cap visible cairns on huge histories to last 180 for clarity)
     const recentDeceased = deceasedArchive.slice(-180);
     const incomingDeceased = new Set<number>();
     for (const d of recentDeceased) {
@@ -296,11 +389,16 @@ export class ActorsManager {
       if (!marker) {
         marker = new THREE.Group();
         const base = new THREE.Mesh(this.res.cairnBaseGeo, this.res.cairnMat);
+        const mid = new THREE.Mesh(this.res.cairnMidGeo, this.res.cairnMat);
         const cone = new THREE.Mesh(this.res.cairnGeo, this.res.cairnMat);
+        base.castShadow = highQuality;
+        mid.castShadow = highQuality;
         base.userData = {kind: 'deceased', agentId: d.agent_id};
+        mid.userData = {kind: 'deceased', agentId: d.agent_id};
         cone.userData = {kind: 'deceased', agentId: d.agent_id};
         marker.userData = {kind: 'deceased', agentId: d.agent_id};
-        marker.add(base, cone);
+        marker.add(base, mid, cone);
+        marker.rotation.y = (d.agent_id * 0.87) % (Math.PI * 2);
         this.deceasedMap.set(d.agent_id, marker);
         this.deceasedGroup.add(marker);
       }
@@ -315,7 +413,7 @@ export class ActorsManager {
       }
     }
 
-    // 3. Fauna
+    // 3. Articulated Fauna
     const incomingFauna = new Set<number>();
     for (const f of faunaList) {
       incomingFauna.add(f.fauna_id);
@@ -324,32 +422,62 @@ export class ActorsManager {
         fGrp = new THREE.Group();
         const isPred = f.species === 'predator';
         const mat = isPred ? this.res.predatorMat : this.res.herbivoreMat;
+
         const body = new THREE.Mesh(this.res.faunaBodyGeo, mat);
-        body.position.set(0, 1.3, 0);
-        if (isPred) body.scale.set(1.12, 0.88, 0.86);
+        body.position.set(0, 1.38, 0);
+        body.castShadow = highQuality;
+        if (isPred) body.scale.set(1.08, 0.84, 0.82);
+
+        const neck = new THREE.Mesh(this.res.faunaNeckGeo, mat);
+        neck.position.set(1.08, isPred ? 1.56 : 1.72, 0);
+        neck.rotation.z = isPred ? -0.95 : -0.58;
 
         const head = new THREE.Mesh(this.res.faunaHeadGeo, mat);
-        head.position.set(1.35, 1.65, 0);
+        head.position.set(1.48, isPred ? 1.72 : 2.02, 0);
+        head.scale.set(1.05, 0.85, 0.82);
 
-        fGrp.add(body, head);
+        const snout = new THREE.Mesh(this.res.faunaSnoutGeo, mat);
+        snout.position.set(1.92, isPred ? 1.66 : 1.94, 0);
+
+        const tail = new THREE.Mesh(this.res.faunaTailGeo, mat);
+        tail.position.set(-1.38, isPred ? 1.48 : 1.32, 0);
+        tail.rotation.z = isPred ? 0.95 : 0.45;
+
+        const shadow = new THREE.Mesh(this.res.shadowDiscGeo, this.res.shadowDiscMat);
+        shadow.position.set(0, 0.08, 0);
+        shadow.scale.set(1.4, 1, 0.9);
+
+        fGrp.add(shadow, body, neck, head, snout, tail);
+
         const legOffsets: Array<[number, number]> = [
-          [-0.75, -0.35],
-          [-0.75, 0.35],
-          [0.75, -0.35],
-          [0.75, 0.35],
+          [-0.78, -0.34],
+          [-0.78, 0.34],
+          [0.78, -0.34],
+          [0.78, 0.34],
         ];
         for (const [lx, lz] of legOffsets) {
           const leg = new THREE.Mesh(this.res.faunaLegGeo, mat);
-          leg.position.set(lx, 0.55, lz);
+          leg.position.set(lx, 0.59, lz);
+          leg.castShadow = highQuality;
           fGrp.add(leg);
         }
+
         if (!isPred) {
           const hornL = new THREE.Mesh(this.res.hornGeo, this.res.cairnMat);
-          hornL.position.set(1.4, 2.2, -0.22);
+          hornL.position.set(1.45, 2.48, -0.2);
+          hornL.rotation.z = -0.32;
           const hornR = new THREE.Mesh(this.res.hornGeo, this.res.cairnMat);
-          hornR.position.set(1.4, 2.2, 0.22);
+          hornR.position.set(1.45, 2.48, 0.2);
+          hornR.rotation.z = -0.32;
           fGrp.add(hornL, hornR);
+        } else {
+          const earL = new THREE.Mesh(this.res.earGeo, mat);
+          earL.position.set(1.36, 2.15, -0.22);
+          const earR = new THREE.Mesh(this.res.earGeo, mat);
+          earR.position.set(1.36, 2.15, 0.22);
+          fGrp.add(earL, earR);
         }
+
         fGrp.rotation.y = (f.fauna_id * 1.1) % (Math.PI * 2);
         fGrp.userData = {kind: 'fauna', faunaId: f.fauna_id};
         this.faunaMap.set(f.fauna_id, fGrp);
@@ -416,6 +544,15 @@ export class ActorsManager {
     const lerpAlpha = Math.min(1, dt * 6);
     for (const h of this.livingMap.values()) {
       if (!h.root.visible) continue;
+
+      // Face movement heading smoothly if moving between steps
+      const dx = h.targetPos.x - h.root.position.x;
+      const dz = h.targetPos.z - h.root.position.z;
+      if (dx * dx + dz * dz > 0.04) {
+        const targetYaw = Math.atan2(dx, dz);
+        h.bodyPivot.rotation.y = targetYaw;
+      }
+
       h.root.position.lerp(h.targetPos, lerpAlpha);
 
       const t = elapsedS * 3.4 + h.phase;
@@ -471,25 +608,39 @@ export class ActorsManager {
 
   public dispose(): void {
     this.res.headGeo.dispose();
+    this.res.hairCapGeo.dispose();
+    this.res.neckGeo.dispose();
     this.res.torsoGeo.dispose();
-    this.res.limbGeo.dispose();
+    this.res.sashGeo.dispose();
+    this.res.armGeo.dispose();
+    this.res.legGeo.dispose();
     this.res.bellyGeo.dispose();
+    this.res.shadowDiscGeo.dispose();
     this.res.hitProxyGeo.dispose();
     this.res.ringGeo.dispose();
     this.res.cairnGeo.dispose();
+    this.res.cairnMidGeo.dispose();
     this.res.cairnBaseGeo.dispose();
     this.res.faunaBodyGeo.dispose();
+    this.res.faunaNeckGeo.dispose();
     this.res.faunaHeadGeo.dispose();
+    this.res.faunaSnoutGeo.dispose();
     this.res.faunaLegGeo.dispose();
+    this.res.faunaTailGeo.dispose();
     this.res.hornGeo.dispose();
+    this.res.earGeo.dispose();
 
     this.res.hitMat.dispose();
-    this.res.skinFMat.dispose();
-    this.res.skinMMat.dispose();
+    this.res.shadowDiscMat.dispose();
+    for (const sm of this.res.skinMats) sm.dispose();
+    this.res.hairDarkMat.dispose();
+    this.res.hairBrownMat.dispose();
+    this.res.hairElderMat.dispose();
     this.res.tunicHealthyF.dispose();
     this.res.tunicHealthyM.dispose();
     this.res.tunicStrained.dispose();
     this.res.tunicCritical.dispose();
+    this.res.sashMat.dispose();
     this.res.limbMat.dispose();
     this.res.voiceRingMat.dispose();
     this.res.selectRingMat.dispose();

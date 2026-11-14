@@ -191,9 +191,9 @@ export default function HistoryDrawer({
             <div className="text-[11px] text-[#9FB0C3]">{t.noEventsMatched}</div>
           ) : (
             <div className="max-h-56 space-y-1.5 overflow-y-auto">
-              {filteredTruth.map((ev) => (
+              {filteredTruth.map((ev, evIdx) => (
                 <div
-                  key={ev.event_id}
+                  key={`${ev.event_id}-${evIdx}`}
                   className="rounded border border-white/5 bg-[#121821] p-2 text-[11px]"
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -223,9 +223,9 @@ export default function HistoryDrawer({
                   <p className="mt-1 text-[#E6EDF3]">{ev.description}</p>
                   {ev.agent_ids.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
-                      {ev.agent_ids.slice(0, 8).map((aid) => (
+                      {ev.agent_ids.slice(0, 8).map((aid, aidIdx) => (
                         <button
-                          key={aid}
+                          key={`${ev.event_id}-${aid}-${aidIdx}`}
                           type="button"
                           onClick={() => onSelectAgent(aid)}
                           className="rounded bg-[#18212C] px-1.5 py-0.5 font-mono text-[10px] text-[#57b8d8] hover:underline"
@@ -256,8 +256,8 @@ export default function HistoryDrawer({
             <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
           ) : (
             <div className="max-h-48 space-y-1.5 overflow-y-auto">
-              {witnesses.map((w) => (
-                <div key={w.account_id} className="rounded bg-[#121821] p-2 text-[11px]">
+              {witnesses.map((w, idx) => (
+                <div key={`${w.account_id}-${idx}`} className="rounded bg-[#121821] p-2 text-[11px]">
                   <div className="flex justify-between font-mono text-[10px] text-[#9FB0C3]">
                     <span>
                       Witness #{w.witness_agent_id} · {t.tickUnit} {w.tick}
@@ -288,8 +288,8 @@ export default function HistoryDrawer({
             <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
           ) : (
             <div className="max-h-48 space-y-1.5 overflow-y-auto">
-              {interpretations.map((it) => (
-                <div key={it.interpretation_id} className="rounded bg-[#121821] p-2 text-[11px]">
+              {interpretations.map((it, idx) => (
+                <div key={`${it.interpretation_id}-${idx}`} className="rounded bg-[#121821] p-2 text-[11px]">
                   <div className="flex justify-between font-mono text-[10px] text-[#9FB0C3]">
                     <span>
                       {t.genShort} {it.generation} · #{it.interpreter_agent_id}

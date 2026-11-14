@@ -453,7 +453,25 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
       exchange_hubs: exchangeHubs,
     },
     groups: Array.isArray(input.groups)
-      ? (input.groups.filter(isObject) as unknown as ObservatorySnapshot['groups'])
+      ? input.groups.filter(isObject).map((g) => {
+          const rawNorms = Array.isArray(g.norm_rules)
+            ? g.norm_rules
+            : Array.isArray(g.norms)
+              ? g.norms
+              : [];
+          return {
+            group_id: asNumber(g.group_id),
+            founded_tick: asNumber(g.founded_tick),
+            member_ids: Array.from(new Set(asNumberArray(g.member_ids))),
+            leader_id: typeof g.leader_id === 'number' ? g.leader_id : null,
+            governance_type: asString(g.governance_type, 'informal'),
+            norm_rules: rawNorms.filter((n): n is string => typeof n === 'string'),
+            has_currency_token: Boolean(g.has_currency_token),
+            last_election_tick: typeof g.last_election_tick === 'number' ? g.last_election_tick : null,
+            next_election_tick: typeof g.next_election_tick === 'number' ? g.next_election_tick : null,
+            active: typeof g.active === 'boolean' ? g.active : true,
+          };
+        })
       : [],
     history_layers: {
       milestones: isObject(histObj.milestones)
@@ -462,9 +480,17 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
           )
         : {},
       layer_1_ground_truth_tail: Array.isArray(histObj.layer_1_ground_truth_tail)
-        ? (histObj.layer_1_ground_truth_tail.filter(
-            isObject,
-          ) as unknown as ObservatorySnapshot['history_layers']['layer_1_ground_truth_tail'])
+        ? histObj.layer_1_ground_truth_tail.filter(isObject).map((ev) => ({
+            event_id: asNumber(ev.event_id),
+            tick: asNumber(ev.tick),
+            sim_date: asString(ev.sim_date),
+            event_type: asString(ev.event_type),
+            agent_ids: Array.from(new Set(asNumberArray(ev.agent_ids))),
+            x: asNumber(ev.x),
+            y: asNumber(ev.y),
+            description: asString(ev.description),
+            metadata: isObject(ev.metadata) ? ev.metadata : undefined,
+          }))
         : [],
       layer_2_witness_accounts_tail: Array.isArray(histObj.layer_2_witness_accounts_tail)
         ? (histObj.layer_2_witness_accounts_tail.filter(

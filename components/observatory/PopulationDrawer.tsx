@@ -57,14 +57,14 @@ export default function PopulationDrawer({
 
   const treeFocus = selectedAgentId !== null ? genealogyMap.get(selectedAgentId) ?? null : null;
 
-  const renderNodePill = (id: number | null, labelPrefix = '') => {
+  const renderNodePill = (id: number | null, labelPrefix = '', keyTag = 'n') => {
     if (id === null) return null;
     const node = genealogyMap.get(id);
     const ag = agentLookup.get(id);
     const alive = node ? node.is_alive : ag?.is_alive ?? false;
     return (
       <button
-        key={id}
+        key={`${keyTag}-${id}`}
         type="button"
         onClick={() => onSelectAgent(id)}
         className={`rounded border px-2 py-1 font-mono text-[11px] transition ${
@@ -114,16 +114,20 @@ export default function PopulationDrawer({
             {(() => {
               const pA = treeFocus.parent_a_id !== null ? genealogyMap.get(treeFocus.parent_a_id) : null;
               const pB = treeFocus.parent_b_id !== null ? genealogyMap.get(treeFocus.parent_b_id) : null;
-              const gps = [
-                pA?.parent_a_id ?? null,
-                pA?.parent_b_id ?? null,
-                pB?.parent_a_id ?? null,
-                pB?.parent_b_id ?? null,
-              ].filter((x): x is number => x !== null);
+              const gps = Array.from(
+                new Set(
+                  [
+                    pA?.parent_a_id ?? null,
+                    pA?.parent_b_id ?? null,
+                    pB?.parent_a_id ?? null,
+                    pB?.parent_b_id ?? null,
+                  ].filter((x): x is number => x !== null),
+                ),
+              );
               if (gps.length === 0) return null;
               return (
                 <div className="flex flex-wrap justify-center gap-1.5">
-                  {gps.map((gid) => renderNodePill(gid, 'GP '))}
+                  {gps.map((gid, idx) => renderNodePill(gid, 'GP ', `gp-${idx}`))}
                 </div>
               );
             })()}
@@ -134,8 +138,8 @@ export default function PopulationDrawer({
                 <span className="text-[11px] text-[#9FB0C3]">{t.noParentsFounders}</span>
               ) : (
                 <>
-                  {renderNodePill(treeFocus.parent_a_id, 'P ')}
-                  {renderNodePill(treeFocus.parent_b_id, 'P ')}
+                  {renderNodePill(treeFocus.parent_a_id, 'P ', 'pa')}
+                  {renderNodePill(treeFocus.parent_b_id, 'P ', 'pb')}
                 </>
               )}
             </div>
@@ -143,14 +147,14 @@ export default function PopulationDrawer({
             <div className="mx-auto h-3 w-px bg-white/15" />
 
             {/* Focus Node */}
-            <div className="flex justify-center">{renderNodePill(treeFocus.agent_id)}</div>
+            <div className="flex justify-center">{renderNodePill(treeFocus.agent_id, '', 'self')}</div>
 
             {/* Children */}
             {treeFocus.children_ids.length > 0 && (
               <>
                 <div className="mx-auto h-3 w-px bg-white/15" />
                 <div className="flex flex-wrap justify-center gap-1.5">
-                  {treeFocus.children_ids.map((cid) => renderNodePill(cid, 'C '))}
+                  {treeFocus.children_ids.map((cid, idx) => renderNodePill(cid, 'C ', `ch-${idx}`))}
                 </div>
               </>
             )}

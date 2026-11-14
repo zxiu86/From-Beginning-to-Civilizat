@@ -459,6 +459,10 @@ const AR: Translations = {
     clay_tablet: 'لوح طيني للتدوين',
   },
   governance: {
+    informal: 'توافق عفوي غير رسمي',
+    elder_council: 'مجلس كبار السن',
+    single_leader: 'قيادة فردية',
+    elective_assembly: 'جمعية انتخابية دورية',
     emergent_council: 'مجلس/توافق ناشئ',
     none: 'بدون بنية حكم',
     elder_consensus: 'توافق ذوي الخبرة',
@@ -744,6 +748,10 @@ const EN: Translations = {
     clay_tablet: 'Clay Tablet',
   },
   governance: {
+    informal: 'Informal Association',
+    elder_council: 'Elder Council',
+    single_leader: 'Single Leader',
+    elective_assembly: 'Elective Assembly',
     emergent_council: 'Emergent Council',
     none: 'None',
     elder_consensus: 'Elder Consensus',

@@ -173,35 +173,42 @@ export default function CivilizationDrawer({t, snapshot}: CivilizationDrawerProp
           <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
         ) : (
           <div className="max-h-48 space-y-2 overflow-y-auto">
-            {activeGroups.map((g) => (
-              <div key={g.group_id} className="rounded border border-white/5 bg-[#121821] p-2 text-[11px]">
-                <div className="flex items-center justify-between font-semibold">
-                  <span className="font-mono text-[#F2BE49]">Group #{g.group_id}</span>
-                  <span className="text-[#9FB0C3]">
-                    {t.membersLabel}: {g.member_ids.length}
-                  </span>
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[#9FB0C3]">
-                  <span>
-                    {t.governanceType}: {t.governance[g.governance_type] ?? g.governance_type}
-                  </span>
-                  <span>
-                    {t.leaderLabel}: {g.leader_id !== null ? `#${g.leader_id}` : '—'}
-                  </span>
-                  {g.next_election_tick !== null && (
-                    <span>
-                      {t.nextElectionLabel}: {t.tickUnit} {g.next_election_tick}
+            {activeGroups.map((g, idx) => {
+              const members = g.member_ids ?? [];
+              const norms = g.norm_rules ?? [];
+              return (
+                <div
+                  key={`${g.group_id}-${idx}`}
+                  className="rounded border border-white/5 bg-[#121821] p-2 text-[11px]"
+                >
+                  <div className="flex items-center justify-between font-semibold">
+                    <span className="font-mono text-[#F2BE49]">Group #{g.group_id}</span>
+                    <span className="text-[#9FB0C3]">
+                      {t.membersLabel}: {members.length}
                     </span>
-                  )}
-                  {g.has_currency_token && <span className="text-[#F2BE49]">{t.currencyTokens}</span>}
-                </div>
-                {g.norm_rules.length > 0 && (
-                  <div className="mt-1 text-[10px] text-emerald-300">
-                    {t.normsLabel}: {g.norm_rules.join(', ')}
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[#9FB0C3]">
+                    <span>
+                      {t.governanceType}: {t.governance[g.governance_type] ?? g.governance_type}
+                    </span>
+                    <span>
+                      {t.leaderLabel}: {g.leader_id !== null ? `#${g.leader_id}` : '—'}
+                    </span>
+                    {g.next_election_tick !== null && (
+                      <span>
+                        {t.nextElectionLabel}: {t.tickUnit} {g.next_election_tick}
+                      </span>
+                    )}
+                    {g.has_currency_token && <span className="text-[#F2BE49]">{t.currencyTokens}</span>}
+                  </div>
+                  {norms.length > 0 && (
+                    <div className="mt-1 text-[10px] text-emerald-300">
+                      {t.normsLabel}: {norms.join(', ')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

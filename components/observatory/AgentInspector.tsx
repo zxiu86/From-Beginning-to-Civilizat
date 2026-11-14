@@ -231,11 +231,11 @@ export default function AgentInspector({
                 <div className="flex flex-wrap gap-1.5">
                   {[agent.parent_a_id, agent.parent_b_id]
                     .filter((pid): pid is number => pid !== null)
-                    .map((pid) => {
+                    .map((pid, idx) => {
                       const rel = agentLookup.get(pid);
                       return (
                         <button
-                          key={pid}
+                          key={`parent-${pid}-${idx}`}
                           type="button"
                           onClick={() => onSelectAgent(pid)}
                           className="rounded border border-white/10 bg-[#121821] px-2 py-1 font-mono text-[11px] hover:border-[#D99B26]/60"
@@ -256,11 +256,11 @@ export default function AgentInspector({
                 <div className="text-[11px] text-[#9FB0C3]/80">{t.noChildrenYet}</div>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
-                  {agent.children_ids.map((cid) => {
+                  {agent.children_ids.map((cid, idx) => {
                     const rel = agentLookup.get(cid);
                     return (
                       <button
-                        key={cid}
+                        key={`child-${cid}-${idx}`}
                         type="button"
                         onClick={() => onSelectAgent(cid)}
                         className="rounded border border-white/10 bg-[#121821] px-2 py-1 font-mono text-[11px] hover:border-[#D99B26]/60"

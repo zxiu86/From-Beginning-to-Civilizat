@@ -64,7 +64,17 @@ assert.equal(normalizedV1.deceased_agents_archive[0].cause_of_death, 'dehydratio
 // 4. Verify invalid payload throws SnapshotValidationError
 assert.throws(() => validateAndNormalizeSnapshot({bad: true}), SnapshotValidationError);
 
-// 5. Verify incremental population diff keyed by agent_id
+// 5. Verify groups normalization (Python `norms` -> `norm_rules`) and deduplicated event agent_ids
+assert.ok(snap.groups.length > 0, 'Expected emergent groups in fixture');
+for (const grp of snap.groups) {
+  assert.ok(Array.isArray(grp.member_ids), 'member_ids must always be an array');
+  assert.ok(Array.isArray(grp.norm_rules), 'norm_rules must always be an array');
+}
+for (const ev of snap.history_layers.layer_1_ground_truth_tail) {
+  assert.equal(new Set(ev.agent_ids).size, ev.agent_ids.length, 'event.agent_ids must be deduplicated');
+}
+
+// 6. Verify incremental population diff keyed by agent_id
 const nextSnap = structuredClone(snap);
 nextSnap.living_agents_full = nextSnap.living_agents_full.slice(1);
 const diff = computePopulationDiff(snap, nextSnap);

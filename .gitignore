@@ -1,0 +1,25 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Python & Simulation Runtime Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+runs/
+checkpoints/
+artifacts_local/
+*.db
+*.db-wal
+*.db-shm
+*.jsonl.gz
+*.pt
+*.bin.gz
+

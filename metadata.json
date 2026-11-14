@@ -1,0 +1,6 @@
+{
+  "name": "From Beginning to Civilization",
+  "description": "Autonomous evolutionary civilization simulation engine with independent local neural agents, 5 km2 ecology, emergent proto-language, 3-layer history, and atomic checkpointing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

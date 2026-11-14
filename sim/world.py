@@ -82,6 +82,7 @@ class WorldEngine:
         self.weather = WeatherState()
         self.fauna: Dict[int, FaunaEntity] = {}
         self.next_fauna_id: int = 1
+        self.spring_cells: List[int] = []
 
     def generate(self, rng: random.Random) -> None:
         """Procedurally generate realistic watersheds, ridges, fertile valleys, and ecosystems."""
@@ -127,6 +128,7 @@ class WorldEngine:
                     water_amt = 80.0
                 elif is_spring:
                     water_amt = 40.0
+                    self.spring_cells.append(idx)
                 else:
                     water_amt = 0.0
                 self.water[idx] = water_amt
@@ -192,13 +194,13 @@ class WorldEngine:
                         3,
                     )
 
-        # Spawn natural fauna (herbivores in fertile meadows, fewer predators)
+        # Spawn natural fauna (herbivores in fertile meadows, balanced apex predators)
         self.fauna.clear()
         self.next_fauna_id = 1
-        for _ in range(55):
+        for _ in range(65):
             fx, fy = self._pick_habitable_point(rng)
             self._spawn_fauna("herbivore", fx, fy, rng)
-        for _ in range(12):
+        for _ in range(6):
             fx, fy = self._pick_habitable_point(rng)
             self._spawn_fauna("predator", fx, fy, rng)
 
@@ -411,6 +413,12 @@ class WorldEngine:
                     self.herb_flora[idx] + 0.012 * self.fertility[idx] * m * season_growth * drought_penalty,
                 )
 
+        # Rainfall gently recharges natural springs (still dries up during drought or over-extraction)
+        if self.weather.rainfall_mm > 0.5 and self.spring_cells:
+            recharge = min(8.0, self.weather.rainfall_mm * 0.45)
+            for s_idx in self.spring_cells:
+                self.water[s_idx] = min(45.0, self.water[s_idx] + recharge)
+
         # Fauna simulation (herbivores graze flora; predators hunt herbivores)
         self._step_fauna(rng)
         return events
@@ -422,34 +430,48 @@ class WorldEngine:
 
         for f in living_fauna:
             f.age_ticks += 1
-            # Movement
-            angle = rng.uniform(0.0, 2.0 * math.pi)
+            # Movement: predators actively stalk nearby herbivores when hungry
             step_dist = 35.0 if f.species == "herbivore" else 55.0
+            angle = rng.uniform(0.0, 2.0 * math.pi)
+            if f.species == "predator" and f.energy < 0.68 and herbivores:
+                nearest_prey = None
+                nearest_d = 240.0
+                for h in herbivores:
+                    if h.alive:
+                        d = math.hypot(h.x - f.x, h.y - f.y)
+                        if d < nearest_d:
+                            nearest_d = d
+                            nearest_prey = h
+                if nearest_prey is not None and nearest_d > 5.0:
+                    angle = math.atan2(nearest_prey.y - f.y, nearest_prey.x - f.x) + rng.uniform(-0.35, 0.35)
+
             nx, ny = self.clamp_coords(f.x + math.cos(angle) * step_dist, f.y + math.sin(angle) * step_dist)
             nidx = self.cell_index_at(nx, ny)
             if self.water[nidx] < 70.0:
                 f.x, f.y = nx, ny
 
             cidx = self.cell_index_at(f.x, f.y)
-            f.energy -= 0.035 if f.species == "herbivore" else 0.045
+            f.energy -= 0.028 if f.species == "herbivore" else 0.013
 
             if f.species == "herbivore":
                 grazed = self.harvest_food(cidx, 0.25)
                 f.energy = min(1.0, f.energy + grazed * 0.28)
-                if f.energy > 0.85 and len(herbivores) < 120 and rng.random() < 0.012:
+                if f.energy > 0.82 and len(herbivores) < 130 and rng.random() < 0.018:
                     new_spawns.append(("herbivore", f.x, f.y))
             else:
-                # Predator seeks nearby herbivore
+                # Predator stalks & ambushes nearby herbivore only when hungry
                 prey = None
-                for h in herbivores:
-                    if h.alive and math.hypot(h.x - f.x, h.y - f.y) <= 90.0:
-                        prey = h
-                        break
-                if prey is not None and rng.random() < 0.45:
+                if f.energy < 0.72:
+                    for h in herbivores:
+                        if h.alive and math.hypot(h.x - f.x, h.y - f.y) <= 120.0:
+                            prey = h
+                            break
+                if prey is not None and rng.random() < 0.22:
                     prey.alive = False
                     prey.health = 0.0
                     f.energy = min(1.0, f.energy + 0.55)
-                if f.energy > 0.88 and len(living_fauna) < 150 and rng.random() < 0.005:
+                pred_count = sum(1 for lf in living_fauna if lf.species == "predator")
+                if f.energy > 0.85 and pred_count < 16 and rng.random() < 0.004:
                     new_spawns.append(("predator", f.x, f.y))
 
             max_age = 1800 if f.species == "herbivore" else 2200
@@ -506,6 +528,7 @@ class WorldEngine:
             "weather": self.weather.to_dict(),
             "fauna": [f.to_dict() for f in self.fauna.values()],
             "next_fauna_id": self.next_fauna_id,
+            "spring_cells": self.spring_cells,
         }
 
     @classmethod
@@ -529,6 +552,7 @@ class WorldEngine:
         world.stone_mineral = list(data["stone_mineral"])
         world.weather = WeatherState.from_dict(data["weather"])
         world.next_fauna_id = int(data["next_fauna_id"])
+        world.spring_cells = [int(i) for i in data.get("spring_cells", [])]
         world.fauna = {
             int(f["fauna_id"]): FaunaEntity.from_dict(f)
             for f in data.get("fauna", [])

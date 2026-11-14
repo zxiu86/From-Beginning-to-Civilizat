@@ -98,6 +98,15 @@ class MemoryEngine:
             return None
         return min(candidates, key=lambda tr: (tr.x - x) ** 2 + (tr.y - y) ** 2)
 
+    def forget_depleted_near(self, x: float, y: float, kind: str, radius_m: float = 45.0) -> None:
+        r2 = radius_m * radius_m
+        stale = [
+            k for k, tr in self.spatial_map.items()
+            if tr.kind == kind and ((tr.x - x) ** 2 + (tr.y - y) ** 2) <= r2
+        ]
+        for k in stale:
+            del self.spatial_map[k]
+
     def update_social(self, other_id: int, fam_delta: float, trust_delta: float) -> None:
         f = self.familiarity.get(other_id, 0.0) + fam_delta
         t = self.trust.get(other_id, 0.0) + trust_delta

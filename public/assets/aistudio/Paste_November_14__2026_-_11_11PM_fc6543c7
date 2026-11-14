@@ -1,0 +1,522 @@
+2026-11-14T20:08:41.1320124Z Current runner version: '2.338.2'
+2026-11-14T20:08:41.1340333Z ##[group]Runner Image Provisioner
+2026-11-14T20:08:41.1341116Z Hosted Compute Agent
+2026-11-14T20:08:41.1341555Z Version: 20261103.629
+2026-11-14T20:08:41.1342050Z Commit: 15dbd9ccb5dbf34fae002b6ed1a2670f52df37bc
+2026-11-14T20:08:41.1342636Z Build Date: 2026-11-03T17:26:59Z
+2026-11-14T20:08:41.1343117Z Worker ID: {f0d4e600-a52f-4bec-9e0f-6130f80225bf}
+2026-11-14T20:08:41.1343619Z Region: centralus
+2026-11-14T20:08:41.1344014Z Cloud: Azure
+2026-11-14T20:08:41.1344405Z ##[endgroup]
+2026-11-14T20:08:41.1345349Z ##[group]Operating System
+2026-11-14T20:08:41.1345773Z Ubuntu
+2026-11-14T20:08:41.1346122Z 24.04.5
+2026-11-14T20:08:41.1346510Z LTS
+2026-11-14T20:08:41.1346915Z ##[endgroup]
+2026-11-14T20:08:41.1347614Z ##[group]Runner Image
+2026-11-14T20:08:41.1348086Z Image: ubuntu-24.04
+2026-11-14T20:08:41.1348453Z Version: 20261111.370.1
+2026-11-14T20:08:41.1349807Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261111.370/images/ubuntu/Ubuntu2404-Readme.md
+2026-11-14T20:08:41.1350900Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261111.370
+2026-11-14T20:08:41.1351563Z ##[endgroup]
+2026-11-14T20:08:41.1352414Z ##[group]GITHUB_TOKEN Permissions
+2026-11-14T20:08:41.1354258Z Actions: read
+2026-11-14T20:08:41.1354712Z Contents: read
+2026-11-14T20:08:41.1355138Z Metadata: read
+2026-11-14T20:08:41.1355524Z ##[endgroup]
+2026-11-14T20:08:41.1357076Z Secret source: Actions
+2026-11-14T20:08:41.1358361Z Cache mode: write
+2026-11-14T20:08:41.1359018Z Prepare workflow directory
+2026-11-14T20:08:41.1680747Z Prepare all required actions
+2026-11-14T20:08:41.1734537Z Getting action download info
+2026-11-14T20:08:41.4164060Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-11-14T20:08:41.5093374Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-11-14T20:08:41.6191019Z Download action repository 'actions/download-artifact@v4' (SHA:d3f86a106a0bac45b974a628896c90dbdf5c8093)
+2026-11-14T20:08:42.0319531Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-11-14T20:08:42.3565741Z Complete job name: run-civilization-sim
+2026-11-14T20:08:42.4274918Z ##[group]Run actions/checkout@v4
+2026-11-14T20:08:42.4275703Z with:
+2026-11-14T20:08:42.4276238Z   repository: zxiu86/From-Beginning-to-Civilizat
+2026-11-14T20:08:42.4279737Z   token: ***
+2026-11-14T20:08:42.4280191Z   ssh-strict: true
+2026-11-14T20:08:42.4280613Z   ssh-user: git
+2026-11-14T20:08:42.4281053Z   persist-credentials: true
+2026-11-14T20:08:42.4281509Z   clean: true
+2026-11-14T20:08:42.4282013Z   sparse-checkout-cone-mode: true
+2026-11-14T20:08:42.4282490Z   fetch-depth: 1
+2026-11-14T20:08:42.4282900Z   fetch-tags: false
+2026-11-14T20:08:42.4283554Z   show-progress: true
+2026-11-14T20:08:42.4283988Z   lfs: false
+2026-11-14T20:08:42.4284416Z   submodules: false
+2026-11-14T20:08:42.4284864Z   set-safe-directory: true
+2026-11-14T20:08:42.4285346Z   allow-unsafe-pr-checkout: false
+2026-11-14T20:08:42.4286026Z ##[endgroup]
+2026-11-14T20:08:42.6764902Z Syncing repository: zxiu86/From-Beginning-to-Civilizat
+2026-11-14T20:08:42.6766842Z ##[group]Getting Git version info
+2026-11-14T20:08:42.6768161Z Working directory is '/home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat'
+2026-11-14T20:08:42.6769480Z [command]/usr/bin/git version
+2026-11-14T20:08:42.6833437Z git version 2.56.1
+2026-11-14T20:08:42.6849852Z ##[endgroup]
+2026-11-14T20:08:42.6863816Z Temporarily overriding HOME='/home/runner/work/_temp/3716dd88-8e3b-4cc6-8dd5-c70f898a5a64' before making global git config changes
+2026-11-14T20:08:42.6865782Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-14T20:08:42.6867810Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat
+2026-11-14T20:08:42.6911688Z Deleting the contents of '/home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat'
+2026-11-14T20:08:42.6915295Z ##[group]Initializing the repository
+2026-11-14T20:08:42.6919986Z [command]/usr/bin/git init /home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat
+2026-11-14T20:08:42.7011567Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-11-14T20:08:42.7012783Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-11-14T20:08:42.7013868Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-11-14T20:08:42.7014560Z hint: call:
+2026-11-14T20:08:42.7014979Z hint:
+2026-11-14T20:08:42.7015492Z hint: 	git config --global init.defaultBranch <name>
+2026-11-14T20:08:42.7016260Z hint:
+2026-11-14T20:08:42.7016827Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-11-14T20:08:42.7017998Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-11-14T20:08:42.7018934Z hint:
+2026-11-14T20:08:42.7019449Z hint: 	git branch -m <name>
+2026-11-14T20:08:42.7020103Z hint:
+2026-11-14T20:08:42.7020903Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-11-14T20:08:42.7022266Z Initialized empty Git repository in /home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat/.git/
+2026-11-14T20:08:42.7034868Z [command]/usr/bin/git remote add origin https://github.com/zxiu86/From-Beginning-to-Civilizat
+2026-11-14T20:08:42.7223718Z ##[endgroup]
+2026-11-14T20:08:42.7224766Z ##[group]Disabling automatic garbage collection
+2026-11-14T20:08:42.7230299Z [command]/usr/bin/git config --local gc.auto 0
+2026-11-14T20:08:42.7262318Z ##[endgroup]
+2026-11-14T20:08:42.7263233Z ##[group]Setting up auth
+2026-11-14T20:08:42.7277212Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-14T20:08:42.7309925Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-14T20:08:42.7622879Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-14T20:08:42.7651889Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-14T20:08:42.7818767Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-14T20:08:42.7847472Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-14T20:08:42.8015802Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-11-14T20:08:42.8053974Z ##[endgroup]
+2026-11-14T20:08:42.8054870Z ##[group]Fetching the repository
+2026-11-14T20:08:42.8064505Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +665dd596b1321d9c005eb0f88a9189e809fd9d23:refs/remotes/origin/main
+2026-11-14T20:08:43.1534673Z From https://github.com/zxiu86/From-Beginning-to-Civilizat
+2026-11-14T20:08:43.1536361Z  * [new ref]         665dd596b1321d9c005eb0f88a9189e809fd9d23 -> origin/main
+2026-11-14T20:08:43.1540346Z ##[endgroup]
+2026-11-14T20:08:43.1541896Z ##[group]Determining the checkout info
+2026-11-14T20:08:43.1543779Z ##[endgroup]
+2026-11-14T20:08:43.1550341Z [command]/usr/bin/git sparse-checkout disable
+2026-11-14T20:08:43.1612109Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-11-14T20:08:43.1642327Z ##[group]Checking out the ref
+2026-11-14T20:08:43.1654132Z [command]/usr/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-11-14T20:08:43.1723287Z Switched to a new branch 'main'
+2026-11-14T20:08:43.1727597Z branch 'main' set up to track 'origin/main'.
+2026-11-14T20:08:43.1764238Z ##[endgroup]
+2026-11-14T20:08:43.1767776Z [command]/usr/bin/git log -1 --format=%H
+2026-11-14T20:08:43.1790437Z 665dd596b1321d9c005eb0f88a9189e809fd9d23
+2026-11-14T20:08:43.2203214Z ##[group]Run actions/setup-python@v5
+2026-11-14T20:08:43.2204382Z with:
+2026-11-14T20:08:43.2205222Z   python-version: 3.11
+2026-11-14T20:08:43.2206217Z   check-latest: false
+2026-11-14T20:08:43.2214395Z   token: ***
+2026-11-14T20:08:43.2215258Z   update-environment: true
+2026-11-14T20:08:43.2216335Z   allow-prereleases: false
+2026-11-14T20:08:43.2217480Z   freethreaded: false
+2026-11-14T20:08:43.2218390Z ##[endgroup]
+2026-11-14T20:08:43.3383577Z ##[group]Installed versions
+2026-11-14T20:08:43.3474994Z (node:2140) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-14T20:08:43.3477844Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-14T20:08:43.3479794Z Successfully set up CPython (3.11.18)
+2026-11-14T20:08:43.3484293Z ##[endgroup]
+2026-11-14T20:08:43.3649284Z ##[group]Run python -m pip install --upgrade pip
+2026-11-14T20:08:43.3650710Z [36;1mpython -m pip install --upgrade pip[0m
+2026-11-14T20:08:43.3652659Z [36;1mpip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt[0m
+2026-11-14T20:08:43.3682493Z shell: /usr/bin/bash -e {0}
+2026-11-14T20:08:43.3683873Z env:
+2026-11-14T20:08:43.3685262Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:43.3687465Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:08:43.3689496Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:43.3691485Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:43.3693405Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:43.3695347Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:08:43.3696860Z ##[endgroup]
+2026-11-14T20:08:43.8838512Z Requirement already satisfied: pip in /opt/hostedtoolcache/Python/3.11.18/x64/lib/python3.11/site-packages (26.3)
+2026-11-14T20:08:44.6359834Z Looking in indexes: https://pypi.org/simple, https://download.pytorch.org/whl/cpu
+2026-11-14T20:08:44.8857679Z Collecting torch==2.5.1 (from -r requirements.txt (line 3))
+2026-11-14T20:08:44.9834389Z   Downloading torch-2.5.1%2Bcpu-cp311-cp311-linux_x86_64.whl (174.7 MB)
+2026-11-14T20:08:45.8891617Z      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 174.7/174.7 MB 196.5 MB/s  0:00:00
+2026-11-14T20:08:46.4172675Z Collecting numpy==2.1.3 (from -r requirements.txt (line 4))
+2026-11-14T20:08:46.4967701Z   Downloading numpy-2.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (62 kB)
+2026-11-14T20:08:46.5975403Z Collecting PyYAML==6.0.2 (from -r requirements.txt (line 5))
+2026-11-14T20:08:46.6138939Z   Downloading PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+2026-11-14T20:08:46.6596723Z Collecting filelock (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.6754884Z   Downloading filelock-4.2.10-py3-none-any.whl.metadata (2.3 kB)
+2026-11-14T20:08:46.7099654Z Collecting typing-extensions>=4.8.0 (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.7255697Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-11-14T20:08:46.7645535Z Collecting networkx (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.7808480Z   Downloading networkx-3.6.1-py3-none-any.whl.metadata (6.8 kB)
+2026-11-14T20:08:46.8149156Z Collecting jinja2 (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.8264057Z   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2026-11-14T20:08:46.8680556Z Collecting fsspec (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.8838907Z   Downloading fsspec-2026.9.0-py3-none-any.whl.metadata (10 kB)
+2026-11-14T20:08:46.9215275Z Collecting sympy==1.13.1 (from torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.9370480Z   Downloading sympy-1.13.1-py3-none-any.whl.metadata (12 kB)
+2026-11-14T20:08:46.9664025Z Collecting mpmath<1.4,>=1.1.0 (from sympy==1.13.1->torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:46.9818564Z   Downloading mpmath-1.3.0-py3-none-any.whl.metadata (8.6 kB)
+2026-11-14T20:08:47.0446780Z Collecting MarkupSafe>=2.0 (from jinja2->torch==2.5.1->-r requirements.txt (line 3))
+2026-11-14T20:08:47.0601973Z   Downloading markupsafe-3.0.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+2026-11-14T20:08:47.0848504Z Downloading numpy-2.1.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (16.3 MB)
+2026-11-14T20:08:47.2061672Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.3/16.3 MB 159.9 MB/s  0:00:00
+2026-11-14T20:08:47.2218372Z Downloading PyYAML-6.0.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (762 kB)
+2026-11-14T20:08:47.2240520Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 763.0/763.0 kB 1.2 GB/s  0:00:00
+2026-11-14T20:08:47.2399008Z Downloading sympy-1.13.1-py3-none-any.whl (6.2 MB)
+2026-11-14T20:08:47.2576151Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 374.6 MB/s  0:00:00
+2026-11-14T20:08:47.2742898Z Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+2026-11-14T20:08:47.2769691Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 980.8 MB/s  0:00:00
+2026-11-14T20:08:47.2938161Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-11-14T20:08:47.3144700Z Downloading filelock-4.2.10-py3-none-any.whl (218 kB)
+2026-11-14T20:08:47.3303629Z Downloading fsspec-2026.9.0-py3-none-any.whl (221 kB)
+2026-11-14T20:08:47.3423910Z Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+2026-11-14T20:08:47.3587939Z Downloading markupsafe-3.0.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+2026-11-14T20:08:47.3740404Z Downloading networkx-3.6.1-py3-none-any.whl (2.1 MB)
+2026-11-14T20:08:47.3781492Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 809.0 MB/s  0:00:00
+2026-11-14T20:08:47.5203575Z Installing collected packages: mpmath, typing-extensions, sympy, PyYAML, numpy, networkx, MarkupSafe, fsspec, filelock, jinja2, torch
+2026-11-14T20:08:59.0284409Z 
+2026-11-14T20:08:59.0295288Z Successfully installed MarkupSafe-3.0.4 PyYAML-6.0.2 filelock-4.2.10 fsspec-2026.9.0 jinja2-3.1.6 mpmath-1.3.0 networkx-3.6.1 numpy-2.1.3 sympy-1.13.1 torch-2.5.1+cpu typing-extensions-4.16.0
+2026-11-14T20:08:59.1393136Z ##[group]Run set -euo pipefail
+2026-11-14T20:08:59.1393469Z [36;1mset -euo pipefail[0m
+2026-11-14T20:08:59.1393773Z [36;1mmkdir -p runs/active_checkpoint runs/logs[0m
+2026-11-14T20:08:59.1394095Z [36;1mif [ "new_world" = "resume_world" ]; then[0m
+2026-11-14T20:08:59.1394427Z [36;1m  if [ -z "" ]; then[0m
+2026-11-14T20:08:59.1394828Z [36;1m    echo "ERROR: mode=resume_world requires a valid 'resume_run_id'. Refusing to start a new world."[0m
+2026-11-14T20:08:59.1395227Z [36;1m    exit 2[0m
+2026-11-14T20:08:59.1395464Z [36;1m  fi[0m
+2026-11-14T20:08:59.1395692Z [36;1m  if ! [[ "" =~ ^[0-9]+$ ]]; then[0m
+2026-11-14T20:08:59.1396050Z [36;1m    echo "ERROR: resume_run_id must be a numeric GitHub Actions Run ID."[0m
+2026-11-14T20:08:59.1396405Z [36;1m    exit 2[0m
+2026-11-14T20:08:59.1396629Z [36;1m  fi[0m
+2026-11-14T20:08:59.1396891Z [36;1mfi[0m
+2026-11-14T20:08:59.1397112Z [36;1mpython -c "[0m
+2026-11-14T20:08:59.1397543Z [36;1mb = float('300')[0m
+2026-11-14T20:08:59.1397982Z [36;1massert 1.0 <= b <= 345.0, f'runtime_budget_minutes={b} must be between 1 and 345'[0m
+2026-11-14T20:08:59.1398314Z [36;1mc = float('25')[0m
+2026-11-14T20:08:59.1398715Z [36;1massert 1.0 <= c <= 180.0, f'checkpoint_interval_minutes={c} must be between 1 and 180'[0m
+2026-11-14T20:08:59.1399079Z [36;1m"[0m
+2026-11-14T20:08:59.1412918Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-14T20:08:59.1413230Z env:
+2026-11-14T20:08:59.1413556Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1413988Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:08:59.1414531Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1414873Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1415210Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1415599Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:08:59.1415924Z ##[endgroup]
+2026-11-14T20:08:59.1589840Z ##[group]Run SEED_VAL=""
+2026-11-14T20:08:59.1590178Z [36;1mSEED_VAL=""[0m
+2026-11-14T20:08:59.1590416Z [36;1mif [ -z "$SEED_VAL" ]; then[0m
+2026-11-14T20:08:59.1590802Z [36;1m  SEED_VAL=$(python -c "import random; print(random.SystemRandom().randint(1, 2147483647))")[0m
+2026-11-14T20:08:59.1591180Z [36;1mfi[0m
+2026-11-14T20:08:59.1591426Z [36;1mecho "Starting new world with seed=$SEED_VAL"[0m
+2026-11-14T20:08:59.1591773Z [36;1mpython -m sim.cli new-world \[0m
+2026-11-14T20:08:59.1592061Z [36;1m  --checkpoint-dir runs/active_checkpoint \[0m
+2026-11-14T20:08:59.1592360Z [36;1m  --seed "$SEED_VAL" \[0m
+2026-11-14T20:08:59.1592623Z [36;1m  --initial-population 100 \[0m
+2026-11-14T20:08:59.1592900Z [36;1m  --runtime-budget-minutes "300" \[0m
+2026-11-14T20:08:59.1593231Z [36;1m  --shutdown-reserve-minutes 12 \[0m
+2026-11-14T20:08:59.1593522Z [36;1m  --checkpoint-interval-minutes "25" \[0m
+2026-11-14T20:08:59.1593908Z [36;1m  --speed-mode "max_cpu_research" \[0m
+2026-11-14T20:08:59.1594187Z [36;1m  --require-torch \[0m
+2026-11-14T20:08:59.1594501Z [36;1m  --log-file runs/logs/simulation.log[0m
+2026-11-14T20:08:59.1605733Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-11-14T20:08:59.1606079Z env:
+2026-11-14T20:08:59.1606347Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1606745Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:08:59.1607129Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1607622Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1607989Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:08:59.1608330Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:08:59.1608671Z ##[endgroup]
+2026-11-14T20:08:59.1731517Z Starting new world with seed=764018085
+2026-11-14T20:09:00.4143439Z 2026-11-14 20:09:00,413 [INFO] root: Host hardware detected: HardwareBudget(cpu_count=4, total_ram_mb=15982, available_ram_mb=14903, recommended_torch_threads=4, batch_learn_interval_ticks=6)
+2026-11-14T20:09:06.4948055Z 2026-11-14 20:09:06,494 [INFO] civilization.sim: Periodic checkpoint saved at tick=360 (Y0001-M01-D01), living=7
+2026-11-14T20:09:09.0620701Z 2026-11-14 20:09:09,061 [INFO] civilization.sim: Periodic checkpoint saved at tick=720 (Y0002-M01-D01), living=1
+2026-11-14T20:09:09.3025116Z {
+2026-11-14T20:09:09.3025730Z   "world_id": "world_764018085_b562752e",
+2026-11-14T20:09:09.3026314Z   "stop_reason": "population_extinct",
+2026-11-14T20:09:09.3026685Z   "ticks_executed_this_run": 748,
+2026-11-14T20:09:09.3027054Z   "final_tick": 748,
+2026-11-14T20:09:09.3027467Z   "final_sim_date": "Y0002-M01-D29",
+2026-11-14T20:09:09.3027771Z   "backend": "pytorch_cpu_2.5.1+cpu",
+2026-11-14T20:09:09.3028049Z   "manifest": {
+2026-11-14T20:09:09.3028290Z     "world_id": "world_764018085_b562752e",
+2026-11-14T20:09:09.3028613Z     "schema_version": "1.0.0",
+2026-11-14T20:09:09.3028914Z     "sim_tick": 748,
+2026-11-14T20:09:09.3029154Z     "sim_date": "Y0002-M01-D29",
+2026-11-14T20:09:09.3029427Z     "season": "spring",
+2026-11-14T20:09:09.3029699Z     "saved_at_utc": "2026-11-14T20:09:09.289595+00:00",
+2026-11-14T20:09:09.3030024Z     "backend": "pytorch_cpu_2.5.1+cpu",
+2026-11-14T20:09:09.3030286Z     "living_population": 0,
+2026-11-14T20:09:09.3030527Z     "total_agents_ever": 100,
+2026-11-14T20:09:09.3030803Z     "next_agent_id": 101,
+2026-11-14T20:09:09.3031043Z     "checksums": {
+2026-11-14T20:09:09.3031474Z       "world_state.db": "daf8063df90072ce542e1488a856d453da0dd160fe5585129e9134b297778be5",
+2026-11-14T20:09:09.3032228Z       "brains_state.bin.gz": "b057c44a10a36dc4cdeeab41bf9ea832fd764cee3aa30a23e27a01da92d0db0d",
+2026-11-14T20:09:09.3032725Z       "events_truth.jsonl.gz": "038a180ca31c00d0e1998e297f3b5669e085c25a77ff0ef92273d512e1f352fd",
+2026-11-14T20:09:09.3033249Z       "rng_state.json.gz": "ee07d09ae6024dddbb4ea541ba6e0868a781aeeca268c0e24e356151012c0f05",
+2026-11-14T20:09:09.3033885Z       "observatory_export.json": "83a9184116bb4c9e9d9b103a40a81a73075f5e7bc57b95898ae6c897ab13efcf"
+2026-11-14T20:09:09.3034272Z     }
+2026-11-14T20:09:09.3034488Z   },
+2026-11-14T20:09:09.3034701Z   "metrics": {
+2026-11-14T20:09:09.3034984Z     "total_crimes": 36,
+2026-11-14T20:09:09.3035246Z     "crimes_by_type": {
+2026-11-14T20:09:09.3035479Z       "murder": 4,
+2026-11-14T20:09:09.3035716Z       "assault": 10,
+2026-11-14T20:09:09.3035945Z       "theft": 22,
+2026-11-14T20:09:09.3036190Z       "deception": 0
+2026-11-14T20:09:09.3036434Z     },
+2026-11-14T20:09:09.3036645Z     "crimes_per_1000_pop": 0.0,
+2026-11-14T20:09:09.3036939Z     "recent_180d_crimes_per_1000": 0.0,
+2026-11-14T20:09:09.3037208Z     "murder_rate_per_1000": 0.0,
+2026-11-14T20:09:09.3037709Z     "assault_rate_per_1000": 0.0,
+2026-11-14T20:09:09.3038003Z     "theft_rate_per_1000": 0.0,
+2026-11-14T20:09:09.3038245Z     "repeat_offenders_count": 12,
+2026-11-14T20:09:09.3038549Z     "known_crimes_sample": 31,
+2026-11-14T20:09:09.3038815Z     "disputes_resolved": 0,
+2026-11-14T20:09:09.3039069Z     "dispute_resolution_rate": 0.0,
+2026-11-14T20:09:09.3039364Z     "social_trust_index": 0.0,
+2026-11-14T20:09:09.3039626Z     "stability_index": null,
+2026-11-14T20:09:09.3039916Z     "sufficient_observation_window": false,
+2026-11-14T20:09:09.3040221Z     "last_crime_tick": 204,
+2026-11-14T20:09:09.3040470Z     "ticks_since_last_crime": 544,
+2026-11-14T20:09:09.3040750Z     "active_groups": 0,
+2026-11-14T20:09:09.3040988Z     "total_barters": 2,
+2026-11-14T20:09:09.3041987Z     "emergent_markets": 0,
+2026-11-14T20:09:09.3042252Z     "collapsed_institutions": 0,
+2026-11-14T20:09:09.3042495Z     "living_population": 0,
+2026-11-14T20:09:09.3042785Z     "deceased_population": 100,
+2026-11-14T20:09:09.3043045Z     "total_agents_ever": 100,
+2026-11-14T20:09:09.3043354Z     "agent_step_errors": 0,
+2026-11-14T20:09:09.3043603Z     "discovered_techs": {
+2026-11-14T20:09:09.3043831Z       "stone_toolmaking": 12,
+2026-11-14T20:09:09.3044128Z       "simple_shelter": 14
+2026-11-14T20:09:09.3044357Z     }
+2026-11-14T20:09:09.3044546Z   }
+2026-11-14T20:09:09.3044746Z }
+2026-11-14T20:09:09.7034079Z ##[group]Run if [ -f runs/active_checkpoint/manifest.json ]; then
+2026-11-14T20:09:09.7034525Z [36;1mif [ -f runs/active_checkpoint/manifest.json ]; then[0m
+2026-11-14T20:09:09.7035058Z [36;1m  python -m sim.cli inspect-world --checkpoint-dir runs/active_checkpoint > runs/logs/final_inspection.json[0m
+2026-11-14T20:09:09.7035510Z [36;1m  cat runs/logs/final_inspection.json[0m
+2026-11-14T20:09:09.7035779Z [36;1mfi[0m
+2026-11-14T20:09:09.7048569Z shell: /usr/bin/bash -e {0}
+2026-11-14T20:09:09.7048887Z env:
+2026-11-14T20:09:09.7049162Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:09.7049562Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:09:09.7049985Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:09.7050335Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:09.7050708Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:09.7051156Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:09:09.7051482Z ##[endgroup]
+2026-11-14T20:09:10.8569768Z 2026-11-14 20:09:10,588 [INFO] root: Host hardware detected: HardwareBudget(cpu_count=4, total_ram_mb=15982, available_ram_mb=14920, recommended_torch_threads=4, batch_learn_interval_ticks=6)
+2026-11-14T20:09:10.8570679Z {
+2026-11-14T20:09:10.8571008Z   "world_id": "world_764018085_b562752e",
+2026-11-14T20:09:10.8571314Z   "manifest": {
+2026-11-14T20:09:10.8572041Z     "world_id": "world_764018085_b562752e",
+2026-11-14T20:09:10.8572384Z     "schema_version": "1.0.0",
+2026-11-14T20:09:10.8572651Z     "sim_tick": 748,
+2026-11-14T20:09:10.8572960Z     "sim_date": "Y0002-M01-D29",
+2026-11-14T20:09:10.8573250Z     "season": "spring",
+2026-11-14T20:09:10.8573578Z     "saved_at_utc": "2026-11-14T20:09:09.289595+00:00",
+2026-11-14T20:09:10.8573987Z     "backend": "pytorch_cpu_2.5.1+cpu",
+2026-11-14T20:09:10.8574323Z     "living_population": 0,
+2026-11-14T20:09:10.8574685Z     "total_agents_ever": 100,
+2026-11-14T20:09:10.8575039Z     "next_agent_id": 101,
+2026-11-14T20:09:10.8575342Z     "checksums": {
+2026-11-14T20:09:10.8575782Z       "world_state.db": "daf8063df90072ce542e1488a856d453da0dd160fe5585129e9134b297778be5",
+2026-11-14T20:09:10.8576277Z       "brains_state.bin.gz": "b057c44a10a36dc4cdeeab41bf9ea832fd764cee3aa30a23e27a01da92d0db0d",
+2026-11-14T20:09:10.8576802Z       "events_truth.jsonl.gz": "038a180ca31c00d0e1998e297f3b5669e085c25a77ff0ef92273d512e1f352fd",
+2026-11-14T20:09:10.8577526Z       "rng_state.json.gz": "ee07d09ae6024dddbb4ea541ba6e0868a781aeeca268c0e24e356151012c0f05",
+2026-11-14T20:09:10.8578040Z       "observatory_export.json": "83a9184116bb4c9e9d9b103a40a81a73075f5e7bc57b95898ae6c897ab13efcf"
+2026-11-14T20:09:10.8578519Z     }
+2026-11-14T20:09:10.8578734Z   },
+2026-11-14T20:09:10.8578977Z   "clock": {
+2026-11-14T20:09:10.8579198Z     "tick": 748,
+2026-11-14T20:09:10.8579426Z     "days_per_month": 30,
+2026-11-14T20:09:10.8579727Z     "months_per_year": 12,
+2026-11-14T20:09:10.8579982Z     "ticks_per_day": 1,
+2026-11-14T20:09:10.8580232Z     "real_seconds_per_sim_month": 60.0,
+2026-11-14T20:09:10.8580517Z     "cumulative_real_seconds": 8.8079,
+2026-11-14T20:09:10.8580791Z     "measured_ticks_per_real_sec": 153.741,
+2026-11-14T20:09:10.8581137Z     "measured_sim_months_per_real_min": 307.482,
+2026-11-14T20:09:10.8581419Z     "sim_date": "Y0002-M01-D29",
+2026-11-14T20:09:10.8581666Z     "season": "spring"
+2026-11-14T20:09:10.8581904Z   },
+2026-11-14T20:09:10.8582126Z   "living_population": 0,
+2026-11-14T20:09:10.8582405Z   "total_agents_ever": 100,
+2026-11-14T20:09:10.8582648Z   "emergent_language": {
+2026-11-14T20:09:10.8583341Z     "first_communication_tick": 1,
+2026-11-14T20:09:10.8583664Z     "first_repeated_signal_tick": 6,
+2026-11-14T20:09:10.8583938Z     "first_shared_symbol_tick": null,
+2026-11-14T20:09:10.8584267Z     "first_stable_protoword_tick": null,
+2026-11-14T20:09:10.8584542Z     "first_grammar_sequence_tick": null,
+2026-11-14T20:09:10.8585073Z     "first_dialect_divergence_tick": 90,
+2026-11-14T20:09:10.8585385Z     "stable_protowords_count": 0,
+2026-11-14T20:09:10.8585687Z     "stable_protowords": {},
+2026-11-14T20:09:10.8585938Z     "top_bigrams": [
+2026-11-14T20:09:10.8586181Z       [
+2026-11-14T20:09:10.8586397Z         "22->23",
+2026-11-14T20:09:10.8586661Z         5
+2026-11-14T20:09:10.8586919Z       ],
+2026-11-14T20:09:10.8587123Z       [
+2026-11-14T20:09:10.8587514Z         "15->13",
+2026-11-14T20:09:10.8587735Z         5
+2026-11-14T20:09:10.8587968Z       ],
+2026-11-14T20:09:10.8588194Z       [
+2026-11-14T20:09:10.8588399Z         "2->1",
+2026-11-14T20:09:10.8588641Z         4
+2026-11-14T20:09:10.8588848Z       ],
+2026-11-14T20:09:10.8589060Z       [
+2026-11-14T20:09:10.8589295Z         "5->10",
+2026-11-14T20:09:10.8589534Z         4
+2026-11-14T20:09:10.8589762Z       ],
+2026-11-14T20:09:10.8589968Z       [
+2026-11-14T20:09:10.8590177Z         "13->20",
+2026-11-14T20:09:10.8590420Z         4
+2026-11-14T20:09:10.8590795Z       ],
+2026-11-14T20:09:10.8591055Z       [
+2026-11-14T20:09:10.8591260Z         "12->8",
+2026-11-14T20:09:10.8591506Z         4
+2026-11-14T20:09:10.8591739Z       ],
+2026-11-14T20:09:10.8591949Z       [
+2026-11-14T20:09:10.8592162Z         "0->14",
+2026-11-14T20:09:10.8592365Z         4
+2026-11-14T20:09:10.8592551Z       ],
+2026-11-14T20:09:10.8592797Z       [
+2026-11-14T20:09:10.8593005Z         "23->16",
+2026-11-14T20:09:10.8593222Z         4
+2026-11-14T20:09:10.8593436Z       ],
+2026-11-14T20:09:10.8593732Z       [
+2026-11-14T20:09:10.8593998Z         "16->18",
+2026-11-14T20:09:10.8594416Z         4
+2026-11-14T20:09:10.8594669Z       ],
+2026-11-14T20:09:10.8594923Z       [
+2026-11-14T20:09:10.8595159Z         "12->19",
+2026-11-14T20:09:10.8595454Z         3
+2026-11-14T20:09:10.8595696Z       ]
+2026-11-14T20:09:10.8595925Z     ],
+2026-11-14T20:09:10.8596234Z     "dialect_clusters": {
+2026-11-14T20:09:10.8596545Z       "WN": {
+2026-11-14T20:09:10.8596895Z         "ctx_food": 11,
+2026-11-14T20:09:10.8597196Z         "ctx_record": 22,
+2026-11-14T20:09:10.8597704Z         "ctx_predator": 4
+2026-11-14T20:09:10.8597978Z       }
+2026-11-14T20:09:10.8598181Z     },
+2026-11-14T20:09:10.8598432Z     "semantic_drift_events": 0,
+2026-11-14T20:09:10.8598727Z     "intergenerational_transmissions": 0
+2026-11-14T20:09:10.8599001Z   },
+2026-11-14T20:09:10.8599234Z   "crime_and_stability": {
+2026-11-14T20:09:10.8599495Z     "total_crimes": 36,
+2026-11-14T20:09:10.8599781Z     "crimes_by_type": {
+2026-11-14T20:09:10.8600051Z       "murder": 4,
+2026-11-14T20:09:10.8600274Z       "assault": 10,
+2026-11-14T20:09:10.8600505Z       "theft": 22,
+2026-11-14T20:09:10.8600725Z       "deception": 0
+2026-11-14T20:09:10.8600942Z     },
+2026-11-14T20:09:10.8601185Z     "crimes_per_1000_pop": 0.0,
+2026-11-14T20:09:10.8601446Z     "recent_180d_crimes_per_1000": 0.0,
+2026-11-14T20:09:10.8601718Z     "murder_rate_per_1000": 0.0,
+2026-11-14T20:09:10.8601993Z     "assault_rate_per_1000": 0.0,
+2026-11-14T20:09:10.8602288Z     "theft_rate_per_1000": 0.0,
+2026-11-14T20:09:10.8602572Z     "repeat_offenders_count": 12,
+2026-11-14T20:09:10.8602830Z     "known_crimes_sample": 31,
+2026-11-14T20:09:10.8603083Z     "disputes_resolved": 0,
+2026-11-14T20:09:10.8603355Z     "dispute_resolution_rate": 0.0,
+2026-11-14T20:09:10.8603632Z     "social_trust_index": 0.0,
+2026-11-14T20:09:10.8603891Z     "stability_index": null,
+2026-11-14T20:09:10.8604150Z     "sufficient_observation_window": false,
+2026-11-14T20:09:10.8604415Z     "last_crime_tick": 204,
+2026-11-14T20:09:10.8604751Z     "ticks_since_last_crime": 544,
+2026-11-14T20:09:10.8605029Z     "active_groups": 0,
+2026-11-14T20:09:10.8605289Z     "total_barters": 2,
+2026-11-14T20:09:10.8605522Z     "emergent_markets": 0,
+2026-11-14T20:09:10.8605762Z     "collapsed_institutions": 0
+2026-11-14T20:09:10.8606021Z   }
+2026-11-14T20:09:10.8606249Z }
+2026-11-14T20:09:10.8853666Z ##[group]Run actions/upload-artifact@v4
+2026-11-14T20:09:10.8854087Z with:
+2026-11-14T20:09:10.8854398Z   name: sim-checkpoint-43635886899
+2026-11-14T20:09:10.8854806Z   path: runs/active_checkpoint
+2026-11-14T20:09:10.8855123Z   retention-days: 90
+2026-11-14T20:09:10.8855425Z   if-no-files-found: error
+2026-11-14T20:09:10.8855881Z   compression-level: 6
+2026-11-14T20:09:10.8856183Z   overwrite: false
+2026-11-14T20:09:10.8856963Z   include-hidden-files: false
+2026-11-14T20:09:10.8857483Z env:
+2026-11-14T20:09:10.8857841Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:10.8858506Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:09:10.8859158Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:10.8859669Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:10.8860173Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:10.8860871Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:09:10.8861299Z ##[endgroup]
+2026-11-14T20:09:11.0248196Z (node:2295) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-14T20:09:11.0249586Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-14T20:09:11.0399840Z With the provided path, there will be 6 files uploaded
+2026-11-14T20:09:11.0400358Z Artifact name is valid!
+2026-11-14T20:09:11.0400953Z Root directory input is valid!
+2026-11-14T20:09:11.3381716Z Beginning upload of artifact content to blob storage
+2026-11-14T20:09:11.4102557Z (node:2295) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-14T20:09:11.7342995Z Uploaded bytes 378436
+2026-11-14T20:09:11.7804558Z Finished uploading artifact content to blob storage!
+2026-11-14T20:09:11.7805393Z SHA256 digest of uploaded artifact zip is 68cf5e538d65a53756d9a556037f4b658908080b5454ec4d8921e25fc1e12ed0
+2026-11-14T20:09:11.7806272Z Finalizing artifact upload
+2026-11-14T20:09:12.1394659Z Artifact sim-checkpoint-43635886899.zip successfully finalized. Artifact ID 14129883026
+2026-11-14T20:09:12.1395494Z Artifact sim-checkpoint-43635886899 has been successfully uploaded! Final size is 378436 bytes. Artifact ID is 14129883026
+2026-11-14T20:09:12.1400641Z Artifact download URL: https://github.com/zxiu86/From-Beginning-to-Civilizat/actions/runs/43635886899/artifacts/14129883026
+2026-11-14T20:09:12.1743724Z ##[group]Run actions/upload-artifact@v4
+2026-11-14T20:09:12.1744053Z with:
+2026-11-14T20:09:12.1744283Z   name: sim-logs-43635886899
+2026-11-14T20:09:12.1744665Z   path: runs/logs
+runs/active_checkpoint/observatory_export.json
+runs/active_checkpoint/manifest.json
+
+2026-11-14T20:09:12.1745122Z   retention-days: 90
+2026-11-14T20:09:12.1745376Z   if-no-files-found: warn
+2026-11-14T20:09:12.1745625Z   compression-level: 6
+2026-11-14T20:09:12.1745866Z   overwrite: false
+2026-11-14T20:09:12.1746412Z   include-hidden-files: false
+2026-11-14T20:09:12.1746697Z env:
+2026-11-14T20:09:12.1746972Z   pythonLocation: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:12.1747538Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib/pkgconfig
+2026-11-14T20:09:12.1747942Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:12.1748285Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:12.1748753Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.11.18/x64
+2026-11-14T20:09:12.1749094Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.11.18/x64/lib
+2026-11-14T20:09:12.1749439Z ##[endgroup]
+2026-11-14T20:09:12.3091980Z (node:2307) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-14T20:09:12.3092788Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-14T20:09:12.3166458Z Multiple search paths detected. Calculating the least common ancestor of all paths
+2026-11-14T20:09:12.3169161Z The least common ancestor is /home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat/runs. This will be the root directory of the artifact
+2026-11-14T20:09:12.3170064Z With the provided path, there will be 4 files uploaded
+2026-11-14T20:09:12.3172279Z Artifact name is valid!
+2026-11-14T20:09:12.3173531Z Root directory input is valid!
+2026-11-14T20:09:12.5959656Z Beginning upload of artifact content to blob storage
+2026-11-14T20:09:12.6149832Z (node:2307) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-11-14T20:09:12.7411429Z Uploaded bytes 11593
+2026-11-14T20:09:12.7796819Z Finished uploading artifact content to blob storage!
+2026-11-14T20:09:12.7797773Z SHA256 digest of uploaded artifact zip is 17cd88c3d36ed3e666aba9e62311ff8a80bf0472b9f2455d9b9d832af51a6f55
+2026-11-14T20:09:12.7798482Z Finalizing artifact upload
+2026-11-14T20:09:13.1310736Z Artifact sim-logs-43635886899.zip successfully finalized. Artifact ID 14130351618
+2026-11-14T20:09:13.1311479Z Artifact sim-logs-43635886899 has been successfully uploaded! Final size is 11593 bytes. Artifact ID is 14130351618
+2026-11-14T20:09:13.1315592Z Artifact download URL: https://github.com/zxiu86/From-Beginning-to-Civilizat/actions/runs/43635886899/artifacts/14130351618
+2026-11-14T20:09:13.1467935Z Post job cleanup.
+2026-11-14T20:09:13.2393105Z (node:2320) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-11-14T20:09:13.2394297Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-11-14T20:09:13.2508974Z Post job cleanup.
+2026-11-14T20:09:13.3204304Z [command]/usr/bin/git version
+2026-11-14T20:09:13.3235554Z git version 2.56.1
+2026-11-14T20:09:13.3262005Z Temporarily overriding HOME='/home/runner/work/_temp/aa0a1dc6-e18d-4f0e-a5eb-423c163acbda' before making global git config changes
+2026-11-14T20:09:13.3262932Z Adding repository directory to the temporary git global config as a safe directory
+2026-11-14T20:09:13.3265973Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/From-Beginning-to-Civilizat/From-Beginning-to-Civilizat
+2026-11-14T20:09:13.3299514Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-11-14T20:09:13.3326282Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-11-14T20:09:13.3589522Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-11-14T20:09:13.3628933Z http.https://github.com/.extraheader
+2026-11-14T20:09:13.3639298Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-11-14T20:09:13.3728808Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-11-14T20:09:13.3958079Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-11-14T20:09:13.3993803Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-11-14T20:09:13.4284643Z Cleaning up orphan processes
+2026-11-14T20:09:13.4554409Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

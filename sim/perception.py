@@ -124,7 +124,7 @@ class PerceptionEngine:
             if math.hypot(art.x - agent.x, art.y - agent.y) <= vision_r
         ]
 
-        # Local grid resources (current cell + immediate 1-cell ring within vision)
+        # Immediate 3x3 reachable resources + wider vision scan up to vision_r
         c0, r0 = world.cell_coords_at(agent.x, agent.y)
         local_water = 0.0
         local_food = 0.0
@@ -132,9 +132,9 @@ class PerceptionEngine:
         local_stone = 0.0
         local_herb = 0.0
         best_food_xy: Optional[Tuple[float, float]] = None
-        best_food_val = 0.0
+        best_food_score = -1.0
         best_water_xy: Optional[Tuple[float, float]] = None
-        best_water_val = 0.0
+        best_water_dist = float("inf")
 
         for dr in (-1, 0, 1):
             rr = r0 + dr
@@ -148,14 +148,28 @@ class PerceptionEngine:
                         local_wood += world.wood_flora[idx]
                         local_stone += world.stone_mineral[idx]
                         local_herb += world.herb_flora[idx]
+
+        vis_span = min(5, max(1, int(vision_r // world.cell_size_m)))
+        for dr in range(-vis_span, vis_span + 1):
+            rr = r0 + dr
+            if 0 <= rr < world.rows:
+                for dc in range(-vis_span, vis_span + 1):
+                    cc = c0 + dc
+                    if 0 <= cc < world.cols:
+                        idx = rr * world.cols + cc
                         wx = (cc + 0.5) * world.cell_size_m
                         wy = (rr + 0.5) * world.cell_size_m
-                        if world.food_flora[idx] > best_food_val:
-                            best_food_val = world.food_flora[idx]
-                            best_food_xy = (wx, wy)
-                        if world.water[idx] > best_water_val:
-                            best_water_val = world.water[idx]
+                        dist = math.hypot(wx - agent.x, wy - agent.y)
+                        if dist > vision_r:
+                            continue
+                        if world.water[idx] > 0.25 and dist < best_water_dist:
+                            best_water_dist = dist
                             best_water_xy = (wx, wy)
+                        if world.food_flora[idx] > 0.4:
+                            score = world.food_flora[idx] / (1.0 + dist * 0.02)
+                            if score > best_food_score:
+                                best_food_score = score
+                                best_food_xy = (wx, wy)
 
         # Local fauna within vision radius
         pred_dist = vision_r + 1.0
@@ -171,25 +185,29 @@ class PerceptionEngine:
                     herb_dist = d
 
         # Directional hints strictly from local perception or own memory (never global oracle)
+        def _dir_unit(tx: float, ty: float) -> Tuple[float, float]:
+            dx = tx - agent.x
+            dy = ty - agent.y
+            d = math.hypot(dx, dy)
+            if d < 1.0:
+                return 0.0, 0.0
+            return round(dx / d, 4), round(dy / d, 4)
+
         food_dx, food_dy = 0.0, 0.0
-        if best_food_xy is not None and best_food_val > 0.2:
-            food_dx = max(-1.0, min(1.0, (best_food_xy[0] - agent.x) / 50.0))
-            food_dy = max(-1.0, min(1.0, (best_food_xy[1] - agent.y) / 50.0))
+        if best_food_xy is not None:
+            food_dx, food_dy = _dir_unit(best_food_xy[0], best_food_xy[1])
         else:
             mem_food = agent.memory.recall_nearest(agent.x, agent.y, "food")
             if mem_food is not None:
-                food_dx = max(-1.0, min(1.0, (mem_food.x - agent.x) / 250.0))
-                food_dy = max(-1.0, min(1.0, (mem_food.y - agent.y) / 250.0))
+                food_dx, food_dy = _dir_unit(mem_food.x, mem_food.y)
 
         water_dx, water_dy = 0.0, 0.0
-        if best_water_xy is not None and best_water_val > 0.2:
-            water_dx = max(-1.0, min(1.0, (best_water_xy[0] - agent.x) / 50.0))
-            water_dy = max(-1.0, min(1.0, (best_water_xy[1] - agent.y) / 50.0))
+        if best_water_xy is not None:
+            water_dx, water_dy = _dir_unit(best_water_xy[0], best_water_xy[1])
         else:
             mem_water = agent.memory.recall_nearest(agent.x, agent.y, "water")
             if mem_water is not None:
-                water_dx = max(-1.0, min(1.0, (mem_water.x - agent.x) / 250.0))
-                water_dy = max(-1.0, min(1.0, (mem_water.y - agent.y) / 250.0))
+                water_dx, water_dy = _dir_unit(mem_water.x, mem_water.y)
 
         near_dx, near_dy = 0.0, 0.0
         if nearest_id is not None and nearest_id in living_agents:

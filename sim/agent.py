@@ -223,13 +223,14 @@ class AgentEngine:
     ) -> None:
         """Spawn 100 distinct independent individuals with zero pre-built language, laws, or culture."""
         for i in range(count):
-            # Pick dry habitable land with accessible nearby ecology
+            # Pick dry habitable land within initial watershed sensory horizon (~110m of water)
             x, y = world.width_m * 0.5, world.height_m * 0.5
-            for _ in range(60):
+            for attempt in range(120):
                 tx = rng.uniform(120.0, world.width_m - 120.0)
                 ty = rng.uniform(120.0, world.height_m - 120.0)
                 cidx = world.cell_index_at(tx, ty)
-                if world.water[cidx] < 50.0 and world.food_flora[cidx] > 1.0 and world.has_nearby_water(tx, ty, 220.0) is not None:
+                rad = 110.0 if attempt < 90 else 160.0
+                if world.water[cidx] < 50.0 and world.food_flora[cidx] > 1.0 and world.has_nearby_water(tx, ty, rad) is not None:
                     x, y = tx, ty
                     break
 
@@ -371,49 +372,80 @@ class AgentEngine:
         bias = [0.0] * len(ACTION_NAMES)
         food_dx, food_dy = perc.obs_vector[18], perc.obs_vector[19]
         water_dx, water_dy = perc.obs_vector[20], perc.obs_vector[21]
+        near_dx, near_dy = perc.obs_vector[24], perc.obs_vector[25]
+
+        # Persistent exploration heading when blindly searching (avoids stationary E-W oscillation)
+        phase = ((agent.agent_id * 37 + agent.age_ticks // 10) % 4)
+        search_move = (1, 3, 2, 4)[phase]  # N, E, S, W sweep
 
         # Thirst drive: drink ONLY if water is actually in reach; otherwise move toward sensed/remembered water
-        if agent.thirst > 0.42:
-            if perc.local_water > 0.1:
-                bias[6] += 3.2 * agent.thirst  # drink_water
+        if agent.thirst > 0.35:
+            urgency = 1.45 if agent.thirst > 0.65 else 1.0
+            if perc.local_water > 0.25:
+                bias[6] += 5.2 * agent.thirst * urgency  # drink_water
             else:
-                bias[6] -= 1.8
+                bias[6] -= 2.5
                 if abs(water_dx) > 0.02 or abs(water_dy) > 0.02:
-                    bias[3 if water_dx > 0 else 4] += 1.8 * agent.thirst * abs(water_dx)
-                    bias[2 if water_dy > 0 else 1] += 1.8 * agent.thirst * abs(water_dy)
+                    bias[3 if water_dx > 0 else 4] += 4.6 * agent.thirst * urgency * abs(water_dx)
+                    bias[2 if water_dy > 0 else 1] += 4.6 * agent.thirst * urgency * abs(water_dy)
                 else:
-                    for m_idx in (1, 2, 3, 4):
-                        bias[m_idx] += 0.6 * agent.thirst
+                    bias[search_move] += 2.6 * agent.thirst * urgency
 
         # Hunger drive: eat inventory or forage if local food exists; otherwise move toward sensed/remembered food
-        if agent.hunger > 0.42:
+        if agent.hunger > 0.38:
             if agent.inventory.get("food", 0.0) >= 0.4:
-                bias[10] += 3.0 * agent.hunger  # eat_inventory
+                bias[10] += 4.0 * agent.hunger  # eat_inventory
             elif perc.local_food > 0.25:
-                bias[5] += 2.8 * agent.hunger  # forage_food
+                bias[5] += 3.6 * agent.hunger  # forage_food
             else:
-                bias[5] -= 1.0
+                bias[5] -= 1.5
                 if abs(food_dx) > 0.02 or abs(food_dy) > 0.02:
-                    bias[3 if food_dx > 0 else 4] += 1.6 * agent.hunger * abs(food_dx)
-                    bias[2 if food_dy > 0 else 1] += 1.6 * agent.hunger * abs(food_dy)
+                    bias[3 if food_dx > 0 else 4] += 3.2 * agent.hunger * abs(food_dx)
+                    bias[2 if food_dy > 0 else 1] += 3.2 * agent.hunger * abs(food_dy)
                 else:
-                    for m_idx in (1, 2, 3, 4):
-                        bias[m_idx] += 0.5 * agent.hunger
+                    bias[search_move] += 1.6 * agent.hunger
 
         if agent.energy < 0.25:
-            bias[0] += 2.2  # rest
-        if agent.life_stage == "infant":
-            # Infants mostly rest, eat, communicate, stay near parent
-            bias[0] += 1.2
-            bias[14] -= 3.0
-            bias[15] -= 3.5
+            bias[0] += 2.6  # rest
 
-        # Personality modulation
+        # Infants stay close to their mother and nurse/learn safely rather than wandering away alone
+        if agent.life_stage == "infant":
+            bias[0] += 1.4
+            bias[14] -= 3.5
+            bias[15] -= 4.0
+            if agent.parent_a_id is not None and agent.parent_a_id in perc.nearby_agent_ids:
+                mom = self.all_agents.get(agent.parent_a_id)
+                if mom is not None and mom.is_alive:
+                    mdx = mom.x - agent.x
+                    mdy = mom.y - agent.y
+                    mdist = math.hypot(mdx, mdy)
+                    if mdist > 20.0:
+                        bias[3 if mdx > 0 else 4] += 2.8 * (abs(mdx) / mdist)
+                        bias[2 if mdy > 0 else 1] += 2.8 * (abs(mdy) / mdist)
+
+        # Natural social bonding / mating readiness when basic biological needs are satisfied
+        if agent.thirst < 0.45 and agent.hunger < 0.45 and agent.health > 0.70 and agent.life_stage != "infant":
+            if perc.nearest_agent_id is not None and perc.nearest_agent_dist <= 32.0:
+                bias[17] += 1.5 * agent.traits.cooperation + 0.55
+                bias[12] += 0.75 * agent.traits.cooperation
+            elif perc.nearest_agent_id is not None:
+                bias[3 if near_dx > 0 else 4] += 0.75 * abs(near_dx)
+                bias[2 if near_dy > 0 else 1] += 0.75 * abs(near_dy)
+
+        # Personality & motive modulation (crimes remain 100% unblocked, driven by real aggression/desperation/grudge)
         bias[12] += 0.35 * agent.traits.cooperation
         bias[13] += 0.35 * agent.traits.empathy
-        bias[14] += 0.25 * (1.0 - agent.traits.empathy) - 0.3 * agent.traits.cooperation
-        bias[15] += 0.30 * agent.traits.aggression - 0.45 * agent.traits.empathy
         bias[16] += 0.35 * agent.traits.curiosity
+
+        if perc.nearest_agent_id is None or perc.nearest_agent_dist > 35.0:
+            bias[14] -= 2.0
+            bias[15] -= 2.2
+        else:
+            trust = perc.nearest_agent_trust
+            theft_motive = max(0.0, agent.hunger - 0.45) * 2.2 + 0.45 * (1.0 - agent.traits.empathy) - 0.7 * agent.traits.cooperation - max(0.0, trust) * 0.8 - 0.4
+            violence_motive = 1.0 * agent.traits.aggression + 1.5 * max(0.0, -trust) - 1.15 * agent.traits.empathy - 0.55 * agent.traits.cooperation - 0.7
+            bias[14] += theft_motive
+            bias[15] += violence_motive
         return bias
 
     def execute_action(
@@ -455,11 +487,25 @@ class AgentEngine:
         if world.weather.condition in ("storm", "flood"):
             move_speed *= 0.65
 
-        # Record local resource sightings in personal spatial memory
+        # Update or invalidate local spatial memories accurately
         if perc.local_food > 0.6:
             agent.memory.remember_location(tick, cidx, agent.x, agent.y, "food", perc.local_food)
-        if perc.local_water > 0.5:
-            agent.memory.remember_location(tick, cidx, agent.x, agent.y, "water", perc.local_water)
+        elif perc.local_food < 0.15:
+            agent.memory.forget_depleted_near(agent.x, agent.y, "food", radius_m=45.0)
+
+        w_near_idx = world.has_nearby_water(agent.x, agent.y, radius_m=40.0)
+        if w_near_idx is not None and world.water[w_near_idx] > 0.5:
+            wc, wr = w_near_idx % world.cols, w_near_idx // world.cols
+            agent.memory.remember_location(
+                tick,
+                w_near_idx,
+                (wc + 0.5) * world.cell_size_m,
+                (wr + 0.5) * world.cell_size_m,
+                "water",
+                world.water[w_near_idx],
+            )
+        elif perc.local_water < 0.25:
+            agent.memory.forget_depleted_near(agent.x, agent.y, "water", radius_m=45.0)
 
         if act == "rest":
             agent.energy = min(1.0, agent.energy + 0.22)
@@ -495,7 +541,21 @@ class AgentEngine:
         elif act == "forage_food":
             skill_bonus = 1.0 + 0.6 * agent.memory.skills.get("foraging", 0.1)
             tool_bonus = 1.35 if agent.inventory.get("tool", 0.0) >= 1.0 else 1.0
-            gathered = world.harvest_food(cidx, 1.35 * skill_bonus * tool_bonus)
+            # Harvest best cell within immediate 3x3 reach (matching PerceptionEngine.local_food)
+            c0, r0 = world.cell_coords_at(agent.x, agent.y)
+            best_idx = cidx
+            best_val = world.food_flora[cidx]
+            for dr in (-1, 0, 1):
+                rr = r0 + dr
+                if 0 <= rr < world.rows:
+                    for dc in (-1, 0, 1):
+                        cc = c0 + dc
+                        if 0 <= cc < world.cols:
+                            idx_n = rr * world.cols + cc
+                            if world.food_flora[idx_n] > best_val:
+                                best_val = world.food_flora[idx_n]
+                                best_idx = idx_n
+            gathered = world.harvest_food(best_idx, 1.35 * skill_bonus * tool_bonus)
             agent.energy = max(0.0, agent.energy - 0.045)
             agent.memory.practice_skill("foraging", 0.04)
             if gathered > 0.05:
@@ -514,12 +574,25 @@ class AgentEngine:
             if w_idx is not None:
                 taken = world.consume_water(w_idx, 0.8)
                 if taken > 0.05:
-                    agent.thirst = max(0.0, agent.thirst - 0.65)
-                    agent.memory.remember_location(tick, w_idx, agent.x, agent.y, "water", world.water[w_idx])
-                    reward += 0.45
+                    agent.thirst = max(0.0, agent.thirst - 0.75)
+                    wc, wr = w_idx % world.cols, w_idx // world.cols
+                    if world.water[w_idx] > 0.5:
+                        agent.memory.remember_location(
+                            tick,
+                            w_idx,
+                            (wc + 0.5) * world.cell_size_m,
+                            (wr + 0.5) * world.cell_size_m,
+                            "water",
+                            world.water[w_idx],
+                        )
+                    else:
+                        agent.memory.forget_depleted_near(agent.x, agent.y, "water", radius_m=45.0)
+                    reward += 0.55
                 else:
+                    agent.memory.forget_depleted_near(agent.x, agent.y, "water", radius_m=45.0)
                     reward -= 0.10
             else:
+                agent.memory.forget_depleted_near(agent.x, agent.y, "water", radius_m=45.0)
                 reward -= 0.15
 
         elif act == "gather_wood":
@@ -730,8 +803,8 @@ class AgentEngine:
             if target_id is not None and perc.nearest_agent_dist <= 32.0 and agent.life_stage != "infant":
                 victim = self.all_agents.get(target_id)
                 if victim and victim.is_alive:
-                    agent.energy = max(0.0, agent.energy - 0.10)
-                    dmg = rng.uniform(0.30, 0.65) + (0.25 if agent.inventory.get("tool", 0.0) >= 1.0 else 0.0)
+                    agent.energy = max(0.0, agent.energy - 0.12)
+                    dmg = rng.uniform(0.18, 0.38) + (0.20 if agent.inventory.get("tool", 0.0) >= 1.0 else 0.0)
                     victim.health = max(0.0, victim.health - dmg)
                     victim.injury = min(1.0, victim.injury + dmg * 0.7)
                     witnesses = [wid for wid in perc.nearby_agent_ids if wid != victim.agent_id]
@@ -839,10 +912,10 @@ class AgentEngine:
             if (
                 agent.sex == "F"
                 and not agent.is_pregnant
-                and 16.0 <= agent.age_years <= 42.0
-                and agent.health >= 0.72
-                and agent.hunger < 0.45
-                and agent.thirst < 0.45
+                and 16.0 <= agent.age_years <= 44.0
+                and agent.health >= 0.70
+                and agent.hunger < 0.50
+                and agent.thirst < 0.50
             ):
                 for oid in perc.nearby_agent_ids:
                     partner = self.all_agents.get(oid)
@@ -852,10 +925,11 @@ class AgentEngine:
                         and partner.sex == "M"
                         and 16.0 <= partner.age_years <= 55.0
                         and partner.health >= 0.65
-                        and math.hypot(partner.x - agent.x, partner.y - agent.y) <= 30.0
-                        and agent.memory.trust.get(oid, 0.0) >= 0.05
+                        and math.hypot(partner.x - agent.x, partner.y - agent.y) <= 35.0
+                        and agent.memory.trust.get(oid, 0.0) >= -0.05
                     ):
-                        if rng.random() < 0.22:
+                        p_conceive = 0.48 if agent.memory.trust.get(oid, 0.0) >= 0.08 else 0.32
+                        if rng.random() < p_conceive:
                             agent.is_pregnant = True
                             agent.gestation_ticks = 0
                             agent.mate_father_id = partner.agent_id

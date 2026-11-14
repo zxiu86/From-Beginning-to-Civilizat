@@ -25,7 +25,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--runtime-budget-minutes", type=float, default=300.0)
         p.add_argument("--shutdown-reserve-minutes", type=float, default=12.0)
         p.add_argument("--checkpoint-interval-minutes", type=float, default=25.0)
-        p.add_argument("--checkpoint-interval-ticks", type=int, default=360)
+        p.add_argument("--checkpoint-interval-ticks", type=int, default=3600)
         p.add_argument("--max-ticks", type=int, default=None, help="Optional hard tick limit for this run")
         p.add_argument("--speed-mode", choices=["realtime_1m_1mo", "max_cpu_research"], default="max_cpu_research")
         p.add_argument("--require-torch", action="store_true", help="Fail if PyTorch CPU is unavailable")

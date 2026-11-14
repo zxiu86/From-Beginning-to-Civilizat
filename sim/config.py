@@ -99,7 +99,7 @@ class SimulationConfig:
     runtime_budget_minutes: float = 300.0
     shutdown_reserve_minutes: float = 12.0
     checkpoint_interval_minutes: float = 25.0
-    checkpoint_interval_ticks: int = 360  # At least once per sim year or time interval
+    checkpoint_interval_ticks: int = 3600  # Every 10 sim years or every 25 real minutes
 
     @property
     def grid_cols(self) -> int:

@@ -452,6 +452,7 @@ class AgentBrain:
             "cause_category": cause_category,
             "applied": True,
             "evidence_basis": evidence_basis,
+            "perceived_cues": sorted([str(k) for k, v in cues.items() if isinstance(v, (int, float)) and float(v) > 0.25]),
             "signal_strength": round(abs(penalty_scale), 3),
             "linked_experience_count": len(recent),
             "weight_fingerprint_before": before_fp,

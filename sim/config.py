@@ -94,9 +94,10 @@ class SimulationConfig:
     base_hearing_radius_m: float = 180.0
     interaction_radius_m: float = 35.0
 
-    # Automatic Population Recovery System (post-total-extinction only)
+    # Automatic Population Recovery System (legacy mode only; disabled for promoted civilizations)
     auto_recover_on_extinction: bool = True
     recovery_founder_count: int = 4
+    training_rebirth_enabled: bool = False
 
     # Runtime & Persistence
     seed: int = 42

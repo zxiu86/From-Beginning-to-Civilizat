@@ -1,24 +1,5 @@
 import type {Metadata} from 'next';
-import {IBM_Plex_Sans_Arabic, JetBrains_Mono, Manrope} from 'next/font/google';
 import './globals.css';
-
-const ibmArabic = IBM_Plex_Sans_Arabic({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-arabic',
-});
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-latin',
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-mono',
-});
 
 export const metadata: Metadata = {
   title: 'From Beginning to Civilization — Civilization Observatory',
@@ -40,11 +21,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
-    <html
-      lang="ar"
-      dir="rtl"
-      className={`${ibmArabic.variable} ${manrope.variable} ${jetbrainsMono.variable}`}
-    >
+    <html lang="ar" dir="rtl">
       <head>
         <script
           dangerouslySetInnerHTML={{

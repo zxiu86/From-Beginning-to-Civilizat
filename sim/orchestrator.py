@@ -10,7 +10,8 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .agent import Agent, AgentEngine
+from .agent import ACTION_NAMES, Agent, AgentEngine
+from .analytics import AnalyticsTracker
 from .brain import configure_torch_cpu
 from .clock import SimulationClock
 from .communication import CommunicationEngine
@@ -48,6 +49,9 @@ class SimulationEngine:
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
         recovery_state: Optional[dict] = None,
+        analytics: Optional[AnalyticsTracker] = None,
+        simulation_phase: str = "civilization",
+        training_analytics: Optional[dict] = None,
     ) -> None:
         self.world_id = world_id
         self.timeline_id = timeline_id or str(uuid.uuid4())
@@ -66,6 +70,9 @@ class SimulationEngine:
         self.backend_name = backend_name
         self.evolution = EvolutionEngine()
         self.timeline_series: List[dict] = list(timeline_series or [])
+        self.analytics: AnalyticsTracker = analytics or AnalyticsTracker()
+        self.simulation_phase: str = simulation_phase
+        self.training_analytics: Optional[dict] = training_analytics
 
         rec = recovery_state or {}
         self.recovery_cycle_count: int = int(rec.get("recovery_cycle_count", 0))
@@ -194,6 +201,9 @@ class SimulationEngine:
             branch_point_tick=manifest.get("branch_point_tick"),
             rebirth_records=manifest.get("restored_rebirth_records", []),
             recovery_state=manifest.get("restored_recovery_state", {}),
+            analytics=manifest.get("restored_analytics"),
+            simulation_phase=manifest.get("restored_simulation_phase", "civilization"),
+            training_analytics=manifest.get("restored_training_analytics"),
         )
 
     def install_signal_handlers(self) -> None:
@@ -430,6 +440,15 @@ class SimulationEngine:
                     history=self.history,
                     rng=self.rng,
                 )
+                self.analytics.record_agent_step(
+                    agent=ag,
+                    perc=perc,
+                    world=self.world,
+                    action_name=ACTION_NAMES[action_idx],
+                    step_info=ag.last_step_telemetry,
+                    reward=reward,
+                    base_vision_radius_m=self.config.base_vision_radius_m,
+                )
                 ag.brain.record_experience(
                     obs=perc.obs_vector,
                     hidden_before=h_before,
@@ -559,6 +578,9 @@ class SimulationEngine:
             branch_point_tick=self.branch_point_tick,
             rebirth_records=self.rebirth_records,
             recovery_state=self._recovery_state_dict(),
+            analytics=self.analytics,
+            simulation_phase=self.simulation_phase,
+            training_analytics=self.training_analytics,
         )
 
     def run(

@@ -165,6 +165,15 @@ class HistoryKnowledgeEngine:
             self._truth_events = self._truth_events[-5000:]
         return ev
 
+    @property
+    def truth_events(self) -> List[TruthEvent]:
+        """External Observer / Engine property ONLY. Never exposed on Agent or Perception."""
+        return self._truth_events
+
+    @truth_events.setter
+    def truth_events(self, value: List[TruthEvent]) -> None:
+        self._truth_events = list(value)
+
     def observer_get_truth_tail(self, limit: int = 200) -> List[TruthEvent]:
         """For external Observer / tests ONLY. Never pass into Agent or Perception."""
         return list(self._truth_events[-limit:])

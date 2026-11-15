@@ -545,6 +545,8 @@ class WorldEngine:
             "avg_soil_moisture": round(avg_moisture, 4),
             "herbivores_alive": herb_count,
             "predators_alive": pred_count,
+            "weather_condition": self.weather.condition,
+            "drought_streak_days": self.weather.drought_streak_days,
             "weather": self.weather.to_dict(),
         }
 

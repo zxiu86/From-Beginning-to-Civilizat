@@ -7,6 +7,7 @@ import {
   SnapshotValidationError,
   validateAndNormalizeSnapshot,
 } from '../lib/observatory/adapter';
+import {formatProtoword} from '../lib/observatory/formatters';
 
 const fixturePath = path.join(process.cwd(), 'public', 'fixtures', 'test_world_snapshot.json');
 const rawFixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
@@ -200,7 +201,103 @@ assert.ok(Number.isFinite(gi.accuracy_estimate) && gi.accuracy_estimate === 0.62
 assert.equal(richNorm.rebirth_records.length, 1);
 assert.equal(richNorm.rebirth_records[0].brain_fingerprint, 'post_fp');
 
-console.log('ALL OBSERVATORY ADAPTER CHECKS PASSED:', {
+// 8. Verify v2.0.0 object stable_protowords normalization + formatProtoword prevent React Error #31
+const protoSnap = structuredClone(rawFixture);
+protoSnap.emergent_language = {
+  ...protoSnap.emergent_language,
+  stable_protowords_count: 2,
+  stable_protowords: {
+    tok_7: {
+      token: 7,
+      context: 'food_here',
+      first_stabilized_tick: 45,
+      adopter_count: 6,
+      extinct: false,
+    },
+    water_here: 'T-3',
+  },
+};
+const protoNorm = validateAndNormalizeSnapshot(protoSnap);
+const p1 = formatProtoword('tok_7', protoNorm.emergent_language.stable_protowords.tok_7);
+const p2 = formatProtoword('water_here', protoNorm.emergent_language.stable_protowords.water_here);
+assert.equal(p1.tokenLabel, 'T-7');
+assert.equal(p1.contextKey, 'food_here');
+assert.equal(p1.adopters, 6);
+assert.equal(p1.stabilizedTick, 45);
+assert.equal(p2.tokenLabel, 'T-3');
+assert.equal(p2.contextKey, 'water_here');
+
+// 9. Verify legacy snapshot without engine analytics computes honest fallback with available_from_engine=false
+assert.equal(normalizedV1.analytics.available_from_engine, false);
+assert.equal(normalizedV1.analytics.survival.deaths_by_cause.dehydration, 1);
+
+// 10. Verify Python IsolatedSurvivalTrainer export schema field mapping in normalizeTrainingAnalytics
+const trainPayload = structuredClone(rawFixture);
+trainPayload.simulation_phase = 'training';
+trainPayload.training_analytics = {
+  training_id: 'train_42_test',
+  agent_count: 1,
+  training_tick: 120,
+  total_attempts: 3,
+  total_deaths: 2,
+  avg_survival_ticks: 40.5,
+  max_longest_survival_ticks: 72,
+  stage_totals: {
+    food_discovered: 5,
+    food_reach_decisions: 4,
+    food_physical_reaches: 3,
+    food_consumed: 2,
+    water_discovered: 6,
+    water_reach_decisions: 5,
+    water_physical_reaches: 4,
+    water_consumed: 3,
+  },
+  death_causes_breakdown: {starvation: 2},
+  attempt_progression: [
+    {tick: 60, total_deaths: 1, avg_longest_survival_ticks: 35, food_consumed_events: 1, water_consumed_events: 2},
+  ],
+  agents: [
+    {
+      agent_id: 1,
+      sex: 'F',
+      attempts: 3,
+      deaths: 2,
+      longest_survival_ticks: 72,
+      avg_survival_ticks: 40.5,
+      current_survival_ticks: 18,
+      last_cause_of_death: 'starvation',
+      food_discovered_count: 5,
+      food_reach_decisions_count: 4,
+      food_physical_reaches_count: 3,
+      food_consumed_count: 2,
+      water_discovered_count: 6,
+      water_reach_decisions_count: 5,
+      water_physical_reaches_count: 4,
+      water_consumed_count: 3,
+      skills_count: 2,
+      episodic_memories_count: 4,
+      spatial_memories_count: 3,
+      brain_updates: 18,
+      learning_level: 0.48,
+      mean_recent_reward: 0.12,
+      status: 'active_training',
+      recent_attempts: [
+        {attempt: 1, death_global_tick: 40, survival_ticks: 40, cause_of_death: 'starvation', perceived_cues: ['low_health'], last_action: 'forage_food'},
+      ],
+    },
+  ],
+};
+const trainNorm = validateAndNormalizeSnapshot(trainPayload);
+assert.equal(trainNorm.simulation_phase, 'training');
+assert.ok(trainNorm.training_analytics !== null);
+assert.equal(trainNorm.training_analytics.training_ticks_executed, 120);
+assert.equal(trainNorm.training_analytics.longest_survival_ticks, 72);
+assert.equal(trainNorm.training_analytics.stage_totals.food_reached, 3);
+assert.equal(trainNorm.training_analytics.agents[0].food_consumed, 2);
+assert.equal(trainNorm.training_analytics.agents[0].learning_level_score, 0.48);
+assert.equal(trainNorm.training_analytics.agents[0].attempt_history[0].cause, 'starvation');
+
+console.log('ALL OBSERVATORY ADAPTER CHECKS PASSED (10 scenarios):', {
   world_id: snap.world_id,
   tick: snap.clock.tick,
   living: snap.living_agents_full.length,

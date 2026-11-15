@@ -6,16 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Operation mode: new_world | resume_world | verify_only"
+        description: "Operation mode: start_training | resume_training | export_trained_population | promote_to_civilization | run_civilization | verify_only"
         required: true
-        default: "new_world"
+        default: "start_training"
         type: choice
         options:
-          - new_world
-          - resume_world
+          - start_training
+          - resume_training
+          - export_trained_population
+          - promote_to_civilization
+          - run_civilization
           - verify_only
-      resume_run_id:
-        description: "Required when mode=resume_world: previous GitHub Actions Run ID holding sim-checkpoint-<run_id>"
+      source_run_id:
+        description: "Required for resume_training, export_trained_population, promote_to_civilization, or run_civilization: GitHub Actions Run ID holding the source artifact"
         required: false
         default: ""
         type: string
@@ -29,8 +32,13 @@ on:
         required: true
         default: "25"
         type: string
+      max_ticks:
+        description: "Optional hard tick cap for this run (blank = run until runtime budget)"
+        required: false
+        default: ""
+        type: string
       world_seed:
-        description: "Optional integer seed when mode=new_world (blank = random)"
+        description: "Optional integer seed for start_training or promote_to_civilization (blank = random)"
         required: false
         default: ""
         type: string
@@ -66,18 +74,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt
 
-      - name: Validate manual inputs
+      - name: Validate manual workflow inputs
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p runs/active_checkpoint runs/logs
-          if [ "${{ inputs.mode }}" = "resume_world" ]; then
-            if [ -z "${{ inputs.resume_run_id }}" ]; then
-              echo "ERROR: mode=resume_world requires a valid 'resume_run_id'. Refusing to start a new world."
+          mkdir -p runs/training_checkpoint runs/bundle runs/civ_checkpoint runs/logs
+          MODE="${{ inputs.mode }}"
+          SRC_ID="${{ inputs.source_run_id }}"
+          if [ "$MODE" = "resume_training" ] || [ "$MODE" = "export_trained_population" ] || [ "$MODE" = "promote_to_civilization" ] || [ "$MODE" = "run_civilization" ]; then
+            if [ -z "$SRC_ID" ]; then
+              echo "ERROR: mode=$MODE requires a valid 'source_run_id'. Refusing silent fallback."
               exit 2
             fi
-            if ! [[ "${{ inputs.resume_run_id }}" =~ ^[0-9]+$ ]]; then
-              echo "ERROR: resume_run_id must be a numeric GitHub Actions Run ID."
+            if ! [[ "$SRC_ID" =~ ^[0-9]+$ ]]; then
+              echo "ERROR: source_run_id must be a numeric GitHub Actions Run ID."
               exit 2
             fi
           fi
@@ -86,74 +96,197 @@ jobs:
           assert 1.0 <= b <= 345.0, f'runtime_budget_minutes={b} must be between 1 and 345'
           c = float('${{ inputs.checkpoint_interval_minutes }}')
           assert 1.0 <= c <= 180.0, f'checkpoint_interval_minutes={c} must be between 1 and 180'
+          mt = '${{ inputs.max_ticks }}'.strip()
+          if mt:
+              assert int(mt) >= 1, 'max_ticks must be >= 1'
           "
 
-      - name: Download previous checkpoint artifact when resuming
-        if: inputs.mode == 'resume_world'
+      # --- Download source artifacts matching selected mode ---
+      - name: Download training checkpoint (resume_training / export_trained_population)
+        if: inputs.mode == 'resume_training' || inputs.mode == 'export_trained_population'
         uses: actions/download-artifact@v4
         with:
-          name: sim-checkpoint-${{ inputs.resume_run_id }}
-          run-id: ${{ inputs.resume_run_id }}
+          name: training-checkpoint-${{ inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: runs/active_checkpoint
+          path: runs/training_checkpoint
 
-      - name: Verify downloaded checkpoint integrity before resuming
-        if: inputs.mode == 'resume_world'
-        run: |
-          python -m sim.cli inspect-world --checkpoint-dir runs/active_checkpoint
+      - name: Download population bundle (promote_to_civilization)
+        if: inputs.mode == 'promote_to_civilization'
+        uses: actions/download-artifact@v4
+        with:
+          name: trained-population-bundle-${{ inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: runs/bundle
 
-      - name: Run full verification suite and CPU benchmark (PyTorch CPU enforced)
+      - name: Download civilization checkpoint (run_civilization)
+        if: inputs.mode == 'run_civilization'
+        uses: actions/download-artifact@v4
+        with:
+          name: sim-checkpoint-${{ inputs.source_run_id }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: runs/civ_checkpoint
+
+      # --- Execute requested mode (strict PyTorch CPU enforced) ---
+      - name: Run full verification suite and CPU benchmark (verify_only)
         if: inputs.mode == 'verify_only'
         run: |
           python -m unittest discover -s tests -p "test_*.py" -v
           python -m benchmarks.benchmark_cpu --require-torch --ticks 120 --output runs/logs/benchmark_report.json
 
-      - name: Run new world simulation (PyTorch CPU enforced)
-        if: inputs.mode == 'new_world'
+      - name: Start isolated survival training (100 clones of shared template)
+        if: inputs.mode == 'start_training'
         shell: bash
         run: |
           SEED_VAL="${{ inputs.world_seed }}"
           if [ -z "$SEED_VAL" ]; then
             SEED_VAL=$(python -c "import random; print(random.SystemRandom().randint(1, 2147483647))")
           fi
-          echo "Starting new world with seed=$SEED_VAL"
-          python -m sim.cli new-world \
-            --checkpoint-dir runs/active_checkpoint \
-            --seed "$SEED_VAL" \
-            --initial-population 100 \
-            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
-            --shutdown-reserve-minutes 12 \
-            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
-            --speed-mode "${{ inputs.speed_mode }}" \
-            --require-torch \
-            --log-file runs/logs/simulation.log
-
-      - name: Resume existing world simulation (PyTorch CPU enforced)
-        if: inputs.mode == 'resume_world'
-        run: |
-          python -m sim.cli resume-world \
-            --checkpoint-dir runs/active_checkpoint \
-            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
-            --shutdown-reserve-minutes 12 \
-            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
-            --speed-mode "${{ inputs.speed_mode }}" \
-            --require-torch \
-            --log-file runs/logs/simulation.log
-
-      - name: Verify final checkpoint integrity
-        if: inputs.mode != 'verify_only' && always()
-        run: |
-          if [ -f runs/active_checkpoint/manifest.json ]; then
-            python -m sim.cli inspect-world --checkpoint-dir runs/active_checkpoint > runs/logs/final_inspection.json
-            cat runs/logs/final_inspection.json
+          EXTRA_ARGS=""
+          if [ -n "${{ inputs.max_ticks }}" ]; then
+            EXTRA_ARGS="--max-ticks ${{ inputs.max_ticks }}"
           fi
+          python -m sim.cli start-training \
+            --checkpoint-dir runs/training_checkpoint \
+            --seed "$SEED_VAL" \
+            --agent-count 100 \
+            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
+            --shutdown-reserve-minutes 12 \
+            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
+            --speed-mode "${{ inputs.speed_mode }}" \
+            --require-torch \
+            --log-file runs/logs/training.log $EXTRA_ARGS
 
-      - name: Upload checkpoint artifact (persistent across runs)
-        if: inputs.mode != 'verify_only' && always()
+      - name: Resume isolated survival training
+        if: inputs.mode == 'resume_training'
+        shell: bash
+        run: |
+          python -m sim.cli inspect-training --checkpoint-dir runs/training_checkpoint
+          EXTRA_ARGS=""
+          if [ -n "${{ inputs.max_ticks }}" ]; then
+            EXTRA_ARGS="--max-ticks ${{ inputs.max_ticks }}"
+          fi
+          python -m sim.cli resume-training \
+            --checkpoint-dir runs/training_checkpoint \
+            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
+            --shutdown-reserve-minutes 12 \
+            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
+            --speed-mode "${{ inputs.speed_mode }}" \
+            --require-torch \
+            --log-file runs/logs/training.log $EXTRA_ARGS
+
+      - name: Export trained 100-agent population to single compressed bundle
+        if: inputs.mode == 'export_trained_population'
+        shell: bash
+        run: |
+          python -m sim.cli inspect-training --checkpoint-dir runs/training_checkpoint
+          python -m sim.cli export-population \
+            --checkpoint-dir runs/training_checkpoint \
+            --output-bundle runs/bundle/trained_population.bundle \
+            --require-torch
+          python -m sim.cli verify-bundle \
+            --bundle-path runs/bundle/trained_population.bundle \
+            --require-torch
+          cp runs/training_checkpoint/observatory_export.json runs/logs/observatory_export.json
+
+      - name: Promote trained population bundle into full 5 km^2 Civilization World
+        if: inputs.mode == 'promote_to_civilization'
+        shell: bash
+        run: |
+          python -m sim.cli verify-bundle \
+            --bundle-path runs/bundle/trained_population.bundle \
+            --require-torch
+          SEED_VAL="${{ inputs.world_seed }}"
+          if [ -z "$SEED_VAL" ]; then
+            SEED_VAL=$(python -c "import random; print(random.SystemRandom().randint(1, 2147483647))")
+          fi
+          EXTRA_ARGS=""
+          if [ -n "${{ inputs.max_ticks }}" ]; then
+            EXTRA_ARGS="--max-ticks ${{ inputs.max_ticks }}"
+          fi
+          python -m sim.cli promote-to-civilization \
+            --bundle-path runs/bundle/trained_population.bundle \
+            --checkpoint-dir runs/civ_checkpoint \
+            --seed "$SEED_VAL" \
+            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
+            --shutdown-reserve-minutes 12 \
+            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
+            --speed-mode "${{ inputs.speed_mode }}" \
+            --require-torch \
+            --log-file runs/logs/civilization.log $EXTRA_ARGS
+
+      - name: Continue promoted Civilization World simulation
+        if: inputs.mode == 'run_civilization'
+        shell: bash
+        run: |
+          python -m sim.cli inspect-world --checkpoint-dir runs/civ_checkpoint
+          EXTRA_ARGS=""
+          if [ -n "${{ inputs.max_ticks }}" ]; then
+            EXTRA_ARGS="--max-ticks ${{ inputs.max_ticks }}"
+          fi
+          python -m sim.cli run-civilization \
+            --checkpoint-dir runs/civ_checkpoint \
+            --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
+            --shutdown-reserve-minutes 12 \
+            --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
+            --speed-mode "${{ inputs.speed_mode }}" \
+            --require-torch \
+            --log-file runs/logs/civilization.log $EXTRA_ARGS
+
+      # --- Verify final artifacts & write clear Run ID summary ---
+      - name: Verify final artifact integrity & print summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "### Run Summary"
+            echo "- **Run ID**: \`${{ github.run_id }}\`"
+            echo "- **Mode**: \`${{ inputs.mode }}\`"
+            echo "- **Source Run ID**: \`${{ inputs.source_run_id || 'none' }}\`"
+            if [ -f runs/training_checkpoint/manifest.json ]; then
+              python -m sim.cli inspect-training --checkpoint-dir runs/training_checkpoint > runs/logs/final_training_inspection.json
+              cp runs/training_checkpoint/observatory_export.json runs/logs/observatory_export.json
+              cp runs/training_checkpoint/manifest.json runs/logs/manifest.json
+              echo "- **Training Artifact**: \`training-checkpoint-${{ github.run_id }}\`"
+            fi
+            if [ -f runs/bundle/trained_population.bundle ]; then
+              echo "- **Bundle Artifact**: \`trained-population-bundle-${{ github.run_id }}\` (single compressed file)"
+            fi
+            if [ -f runs/civ_checkpoint/manifest.json ]; then
+              python -m sim.cli inspect-world --checkpoint-dir runs/civ_checkpoint > runs/logs/final_world_inspection.json
+              cp runs/civ_checkpoint/observatory_export.json runs/logs/observatory_export.json
+              cp runs/civ_checkpoint/manifest.json runs/logs/manifest.json
+              echo "- **Civilization Artifact**: \`sim-checkpoint-${{ github.run_id }}\`"
+            fi
+            echo "- **Logs & Observatory Snapshot Artifact**: \`sim-logs-${{ github.run_id }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload training checkpoint artifact
+        if: (inputs.mode == 'start_training' || inputs.mode == 'resume_training') && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-checkpoint-${{ github.run_id }}
+          path: runs/training_checkpoint
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload single-file trained population bundle artifact
+        if: inputs.mode == 'export_trained_population' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-population-bundle-${{ github.run_id }}
+          path: runs/bundle/trained_population.bundle
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Upload civilization checkpoint artifact
+        if: (inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization') && always()
         uses: actions/upload-artifact@v4
         with:
           name: sim-checkpoint-${{ github.run_id }}
-          path: runs/active_checkpoint
+          path: runs/civ_checkpoint
           retention-days: 90
           if-no-files-found: error
 
@@ -162,9 +295,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sim-logs-${{ github.run_id }}
-          path: |
-            runs/logs
-            runs/active_checkpoint/observatory_export.json
-            runs/active_checkpoint/manifest.json
+          path: runs/logs
           retention-days: 90
           if-no-files-found: warn

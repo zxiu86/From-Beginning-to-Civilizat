@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .agent import Agent, AgentEngine
+from .analytics import AnalyticsTracker
 from .brain import AgentBrain, TORCH_AVAILABLE, torch
 from .clock import SimulationClock
 from .communication import CommunicationEngine
@@ -80,6 +81,9 @@ class PersistenceEngine:
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
         recovery_state: Optional[dict] = None,
+        analytics: Optional[AnalyticsTracker] = None,
+        simulation_phase: str = "civilization",
+        training_analytics: Optional[dict] = None,
     ) -> dict:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         clock.flush_elapsed_runtime()
@@ -156,6 +160,9 @@ class PersistenceEngine:
                     ("timeline_series", json.dumps(timeline_series or [])),
                     ("rebirth_records", json.dumps(rebirth_records or [])),
                     ("recovery_state", json.dumps(recovery_state or {})),
+                    ("analytics", json.dumps((analytics or AnalyticsTracker()).to_dict())),
+                    ("simulation_phase", json.dumps(simulation_phase)),
+                    ("training_analytics", json.dumps(training_analytics)),
                 ]
                 cur.executemany("INSERT INTO subsystems (name, data_json) VALUES (?, ?)", sub_rows)
                 conn.commit()
@@ -208,6 +215,9 @@ class PersistenceEngine:
                 branch_point_tick=branch_point_tick,
                 rebirth_records=rebirth_records,
                 recovery_state=recovery_state,
+                analytics=analytics,
+                simulation_phase=simulation_phase,
+                training_analytics=training_analytics,
             )
             with open(obs_path, "w", encoding="utf-8") as fh:
                 json.dump(obs_payload, fh, ensure_ascii=False, separators=(",", ":"))
@@ -229,6 +239,7 @@ class PersistenceEngine:
                 "parent_timeline_id": parent_timeline_id,
                 "timeline_kind": timeline_kind,
                 "branch_point_tick": branch_point_tick,
+                "simulation_phase": simulation_phase,
                 "deceased_brains_archived": True,
                 "schema_version": SCHEMA_VERSION,
                 "sim_tick": clock.tick,
@@ -239,6 +250,8 @@ class PersistenceEngine:
                 "living_population": living_count,
                 "total_agents_ever": len(agents.all_agents),
                 "next_agent_id": agents.next_agent_id,
+                "auto_recover_on_extinction": bool(config.auto_recover_on_extinction),
+                "training_rebirth_enabled": bool(config.training_rebirth_enabled),
                 "recovery_cycle_count": int(rec_info.get("recovery_cycle_count", 0)),
                 "current_cycle_number": int(rec_info.get("current_cycle_number", 1)),
                 "checksums": checksums,
@@ -385,6 +398,21 @@ class PersistenceEngine:
         manifest["restored_recovery_state"] = (
             json.loads(subs["recovery_state"]) if "recovery_state" in subs else {}
         )
+        manifest["restored_analytics"] = (
+            AnalyticsTracker.from_dict(json.loads(subs["analytics"]))
+            if "analytics" in subs
+            else AnalyticsTracker()
+        )
+        manifest["restored_simulation_phase"] = (
+            json.loads(subs["simulation_phase"])
+            if "simulation_phase" in subs
+            else "civilization"
+        )
+        manifest["restored_training_analytics"] = (
+            json.loads(subs["training_analytics"])
+            if "training_analytics" in subs
+            else None
+        )
 
         return world_id, config, clock, world, agent_engine, comm, society, history, rng, manifest
 
@@ -397,8 +425,8 @@ class PersistenceEngine:
         comm: CommunicationEngine,
         society: SocietyEngine,
         history: HistoryKnowledgeEngine,
-        metrics: dict,
-        backend_name: str,
+        metrics: Optional[dict] = None,
+        backend_name: str = "pure_python_fallback",
         config: Optional[SimulationConfig] = None,
         timeline_series: Optional[List[dict]] = None,
         timeline_id: Optional[str] = None,
@@ -407,6 +435,9 @@ class PersistenceEngine:
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
         recovery_state: Optional[dict] = None,
+        analytics: Optional[AnalyticsTracker] = None,
+        simulation_phase: str = "civilization",
+        training_analytics: Optional[dict] = None,
     ) -> dict:
         """Read-only structured JSON contract for Civilization Observatory (zero mutation, zero global leaks in FPV)."""
         living_dict = {aid: ag for aid, ag in agents.all_agents.items() if ag.is_alive}
@@ -606,7 +637,11 @@ class PersistenceEngine:
         lang_summary = comm.summary()
         lang_summary["extinct_tokens_count"] = comm.milestones.extinct_tokens_count
 
-        crime_payload = dict(metrics)
+        crime_payload = (
+            dict(metrics)
+            if metrics is not None
+            else society.crime_and_stability_metrics(clock.tick, living_dict)
+        )
         crime_payload["recent_crimes"] = [c.to_dict() for c in society.crimes[-120:]]
         crime_payload["exchange_hubs"] = [
             {
@@ -653,9 +688,20 @@ class PersistenceEngine:
             "population_recovery_history": [],
         }
 
+        tracker = analytics or AnalyticsTracker()
+        analytics_report = tracker.build_report(
+            clock=clock,
+            world=world,
+            agents=agents,
+            comm=comm,
+            society=society,
+            history=history,
+        )
+
         return {
             "export_schema_version": SCHEMA_VERSION,
             "exported_at_utc": datetime.now(timezone.utc).isoformat(),
+            "simulation_phase": simulation_phase,
             "world_id": world_id,
             "timeline_id": timeline_id or str(uuid.uuid5(uuid.NAMESPACE_OID, world_id)),
             "parent_timeline_id": parent_timeline_id,
@@ -664,6 +710,8 @@ class PersistenceEngine:
             "rebirth_records": list(rebirth_records or []),
             "recovery_state": rec_out,
             "learning_telemetry": learning_telemetry,
+            "analytics": analytics_report,
+            "training_analytics": training_analytics,
             "backend": backend_name,
             "clock": clock.to_dict(),
             "engine_capabilities": {

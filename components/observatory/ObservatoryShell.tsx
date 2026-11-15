@@ -2,7 +2,22 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {AnimatePresence, motion} from 'motion/react';
-import {X} from 'lucide-react';
+import {
+  Activity,
+  Brain,
+  CloudSun,
+  Coins,
+  Droplets,
+  HeartCrack,
+  History,
+  Info,
+  Landmark,
+  Layers,
+  LayoutDashboard,
+  Milestone,
+  Sprout,
+  Users,
+} from 'lucide-react';
 import {
   buildAgentLookupMap,
   SnapshotValidationError,
@@ -13,52 +28,42 @@ import {
   reportClientError,
   subscribeDiagnostics,
 } from '@/lib/observatory/diagnostics';
+import {safeFixed} from '@/lib/observatory/formatters';
 import {getTranslations} from '@/lib/observatory/i18n';
 import type {ImportedTimelineBundle} from '@/lib/observatory/importer';
 import type {
-  ActiveDrawer,
   LiveTimelineSummary,
-  LivingAgentFull,
   Locale,
+  ObservatorySection,
   ObservatorySnapshot,
-  QualityPreset,
   ReplayEventTarget,
   SnapshotSourceMode,
 } from '@/lib/observatory/types';
 import AgentInspector from './AgentInspector';
-import BottomDock from './BottomDock';
 import CivilizationDrawer from './CivilizationDrawer';
 import ComparisonDrawer from './ComparisonDrawer';
 import DiagnosticsModal from './DiagnosticsModal';
 import EmptyWorldOverlay from './EmptyWorldOverlay';
 import ErrorBoundary from './ErrorBoundary';
-import FpvHud from './FpvHud';
 import HistoryDrawer from './HistoryDrawer';
 import JsonImporterModal from './JsonImporterModal';
+import LearningPanel from './LearningPanel';
 import PopulationDrawer from './PopulationDrawer';
+import ResourcesPanel from './ResourcesPanel';
+import SurvivalPanel from './SurvivalPanel';
 import TelemetryDrawer from './TelemetryDrawer';
 import TimelineBar, {type SimSpeed} from './TimelineBar';
 import TopBar from './TopBar';
-import WorldCanvas3D from './WorldCanvas3D';
+import TrainingPanel from './TrainingPanel';
 
 export default function ObservatoryShell() {
   const [locale, setLocale] = useState<Locale>('ar');
   const [snapshot, setSnapshot] = useState<ObservatorySnapshot | null>(null);
   const [sourceMode, setSourceMode] = useState<SnapshotSourceMode>('empty');
-  const [quality, setQuality] = useState<QualityPreset>('high');
-  const [fps, setFps] = useState<number>(0);
-  const [softwareGl, setSoftwareGl] = useState(false);
-
-  const [activeDrawer, setActiveDrawer] = useState<ActiveDrawer>(null);
-  const [zenMode, setZenMode] = useState(false);
+  const [activeSection, setActiveSection] = useState<ObservatorySection>('overview');
 
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
-  const [followAgent, setFollowAgent] = useState(false);
-  const [fpvAgentId, setFpvAgentId] = useState<number | null>(null);
   const [replayTarget, setReplayTarget] = useState<ReplayEventTarget | null>(null);
-
-  const [resetSignal, setResetSignal] = useState(0);
-  const [flyToSignal, setFlyToSignal] = useState(0);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [loadingFixture, setLoadingFixture] = useState(false);
@@ -89,11 +94,9 @@ export default function ObservatoryShell() {
     importedFrames: Record<number, ObservatorySnapshot>;
   } | null>(null);
 
-  // Diagnostics & Renderer Status
+  // Diagnostics
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [diagnosticErrorCount, setDiagnosticErrorCount] = useState(0);
-  const [webglMode, setWebglMode] = useState<'webgl' | 'fallback_2d'>('webgl');
-  const [webglReason, setWebglReason] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -111,20 +114,6 @@ export default function ObservatoryShell() {
     document.documentElement.lang = locale;
     document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
   }, [locale]);
-
-  // Auto-detect mobile screen width asynchronously after hydration for sensible default quality
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 767px)');
-    const onChange = () => setQuality(mql.matches ? 'low' : 'high');
-    mql.addEventListener('change', onChange);
-    const raf = requestAnimationFrame(() => {
-      if (mql.matches) setQuality('low');
-    });
-    return () => {
-      cancelAnimationFrame(raf);
-      mql.removeEventListener('change', onChange);
-    };
-  }, []);
 
   const refreshLiveStatus = useCallback(async (): Promise<LiveTimelineSummary[]> => {
     try {
@@ -209,9 +198,10 @@ export default function ObservatoryShell() {
       setIsHistoricalMode(false);
       setHistoricalTick(null);
       setUploadError(null);
-      setFpvAgentId(null);
       setReplayTarget(null);
-      setResetSignal((n) => n + 1);
+      if (parsed.simulation_phase === 'training') {
+        setActiveSection('training');
+      }
     } catch (err) {
       const msg =
         err instanceof SnapshotValidationError || err instanceof Error
@@ -238,9 +228,7 @@ export default function ObservatoryShell() {
       setFrameTicks([parsed.clock.tick]);
       setIsHistoricalMode(false);
       setHistoricalTick(null);
-      setFpvAgentId(null);
       setReplayTarget(null);
-      setResetSignal((n) => n + 1);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Failed to load test fixture.');
     } finally {
@@ -268,9 +256,7 @@ export default function ObservatoryShell() {
       setFrameTicks(Array.isArray(payload.frame_ticks) ? payload.frame_ticks : [parsed.clock.tick]);
       setIsHistoricalMode(false);
       setHistoricalTick(null);
-      setFpvAgentId(null);
       setReplayTarget(null);
-      setResetSignal((n) => n + 1);
       await refreshLiveStatus();
     } catch (err) {
       reportClientError('ObservatoryShell:handleStartLiveWorld', err);
@@ -296,7 +282,6 @@ export default function ObservatoryShell() {
       setFrameTicks(Array.isArray(payload.frame_ticks) ? payload.frame_ticks : []);
       setIsHistoricalMode(false);
       setHistoricalTick(null);
-      setFpvAgentId(null);
       setReplayTarget(null);
     } catch {
       // ignore transient fetch errors
@@ -422,7 +407,7 @@ export default function ObservatoryShell() {
       setFrameTicks(Array.isArray(payload.frame_ticks) ? payload.frame_ticks : [parsed.clock.tick]);
       setIsHistoricalMode(false);
       setHistoricalTick(null);
-      setActiveDrawer('comparison');
+      setActiveSection('history');
       await refreshLiveStatus();
     } finally {
       setIsStepping(false);
@@ -446,9 +431,7 @@ export default function ObservatoryShell() {
       setIsHistoricalMode(false);
       setHistoricalTick(null);
       setUploadError(null);
-      setFpvAgentId(null);
       setReplayTarget(null);
-      setResetSignal((n) => n + 1);
 
       const orig = allBundles.find((b) => !b.haltedDueToCycle && b.timelineKind !== 'experimental_rebirth');
       const exp = allBundles.find((b) => !b.haltedDueToCycle && b.timelineKind === 'experimental_rebirth');
@@ -475,59 +458,33 @@ export default function ObservatoryShell() {
     [selectedAgentId, agentLookup],
   );
 
-  const fpvAgent: LivingAgentFull | null = useMemo(() => {
-    if (fpvAgentId === null) return null;
-    const ag = agentLookup.get(fpvAgentId);
-    return ag && ag.is_alive ? ag : null;
-  }, [fpvAgentId, agentLookup]);
-
-  const handleSelectAgentFrom3D = useCallback((id: number | null) => {
+  const handleInspectAgent = useCallback((id: number) => {
     setSelectedAgentId(id);
-    if (id !== null) {
-      setActiveDrawer('inspector');
-      setZenMode(false);
-    }
+    setActiveSection('population');
   }, []);
 
-  const handleFlyToAgent = useCallback((id: number) => {
-    setSelectedAgentId(id);
-    setFpvAgentId(null);
-    setFlyToSignal((n) => n + 1);
-  }, []);
+  const navItems: Array<{id: ObservatorySection; label: string; icon: React.ReactNode}> = [
+    {id: 'overview', label: t.navOverview, icon: <LayoutDashboard className="h-3.5 w-3.5" />},
+    {id: 'population', label: t.navPopulation, icon: <Users className="h-3.5 w-3.5" />},
+    {id: 'survival', label: t.navSurvival, icon: <HeartCrack className="h-3.5 w-3.5" />},
+    {id: 'resources', label: t.navResources, icon: <Sprout className="h-3.5 w-3.5" />},
+    {id: 'civilization', label: t.navCivilization, icon: <Landmark className="h-3.5 w-3.5" />},
+    {id: 'learning', label: t.navLearning, icon: <Brain className="h-3.5 w-3.5" />},
+    {id: 'training', label: t.navTraining, icon: <Layers className="h-3.5 w-3.5" />},
+    {id: 'history', label: t.navHistory, icon: <History className="h-3.5 w-3.5" />},
+  ];
 
-  const handleEnterFpv = useCallback((id: number) => {
-    setSelectedAgentId(id);
-    setFollowAgent(false);
-    setReplayTarget(null);
-    setActiveDrawer(null);
-    setFpvAgentId(id);
-  }, []);
-
-  const handleReplayEvent = useCallback((ev: ReplayEventTarget) => {
-    setFpvAgentId(null);
-    setFollowAgent(false);
-    setReplayTarget(ev);
-  }, []);
-
-  const drawerTitle =
-    activeDrawer === 'inspector'
-      ? t.tabInspector
-      : activeDrawer === 'population'
-        ? t.tabPopulation
-        : activeDrawer === 'civilization'
-          ? t.tabCivilization
-          : activeDrawer === 'history'
-            ? t.tabHistory
-            : activeDrawer === 'telemetry'
-              ? t.tabTelemetry
-              : activeDrawer === 'comparison'
-                ? t.tabComparison
-                : '';
+  const achievedMilestones = useMemo(() => {
+    if (!snapshot) return [];
+    return Object.entries(snapshot.history_layers.milestones)
+      .filter(([, tick]) => tick !== null)
+      .sort((a, b) => (a[1] ?? 0) - (b[1] ?? 0));
+  }, [snapshot]);
 
   return (
     <div
       dir={locale === 'ar' ? 'rtl' : 'ltr'}
-      className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#0B0F14] text-[#E6EDF3]"
+      className="flex min-h-screen w-full flex-col bg-[#0B0F14] text-[#E6EDF3]"
     >
       {/* Hidden Single-File Input */}
       <input
@@ -542,226 +499,402 @@ export default function ObservatoryShell() {
         }}
       />
 
-      {!zenMode && (
-        <TopBar
-          t={t}
-          locale={locale}
-          snapshot={snapshot}
-          sourceMode={sourceMode}
-          quality={quality}
-          fps={fps}
-          softwareGl={softwareGl}
-          liveApiAvailable={liveApiAvailable}
-          creatingLiveWorld={creatingLiveWorld}
-          diagnosticErrorCount={diagnosticErrorCount}
-          onToggleLocale={() => setLocale((prev) => (prev === 'ar' ? 'en' : 'ar'))}
-          onChangeQuality={setQuality}
-          onUploadClick={() => fileInputRef.current?.click()}
-          onOpenMultiImporter={() => setImporterOpen(true)}
-          onStartLiveWorld={() => void handleStartLiveWorld()}
-          onRefreshPublished={() => void loadPublishedSnapshot()}
-          onOpenDiagnostics={() => setDiagnosticsOpen(true)}
-        />
+      <TopBar
+        t={t}
+        locale={locale}
+        snapshot={snapshot}
+        sourceMode={sourceMode}
+        liveApiAvailable={liveApiAvailable}
+        creatingLiveWorld={creatingLiveWorld}
+        diagnosticErrorCount={diagnosticErrorCount}
+        onToggleLocale={() => setLocale((prev) => (prev === 'ar' ? 'en' : 'ar'))}
+        onUploadClick={() => fileInputRef.current?.click()}
+        onOpenMultiImporter={() => setImporterOpen(true)}
+        onStartLiveWorld={() => void handleStartLiveWorld()}
+        onRefreshPublished={() => void loadPublishedSnapshot()}
+        onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+      />
+
+      <TimelineBar
+        t={t}
+        snapshot={snapshot}
+        liveApiAvailable={liveApiAvailable}
+        liveTimelines={liveTimelines}
+        activeRunId={activeRunId}
+        isPlaying={isPlaying}
+        isStepping={isStepping}
+        speed={simSpeed}
+        frameTicks={frameTicks}
+        isHistoricalMode={isHistoricalMode}
+        historicalTick={historicalTick}
+        onSelectRun={(id) => void handleSelectLiveRun(id)}
+        onTogglePlay={() => setIsPlaying((p) => !p)}
+        onStepOnce={() => void stepLiveSimulation(1)}
+        onChangeSpeed={setSimSpeed}
+        onScrubTick={(tk) => void handleScrubTick(tk)}
+        onReturnToLive={() => void handleReturnToLive()}
+        onBranchRebirth={() => void handleBranchRebirth()}
+      />
+
+      {/* Section Navigation Bar */}
+      {snapshot && (
+        <nav className="border-b border-white/10 bg-[#121821]/80">
+          <div className="mx-auto flex w-full max-w-[1600px] items-center gap-1 overflow-x-auto px-3 py-2 md:px-6">
+            {navItems.map((item) => {
+              const active = activeSection === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveSection(item.id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition ${
+                    active
+                      ? 'border-[#D99B26] bg-[#D99B26]/15 text-[#F2BE49]'
+                      : 'border-white/10 bg-[#18212C] text-[#9FB0C3] hover:border-white/25 hover:text-[#E6EDF3]'
+                  }`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                  {item.id === 'training' && snapshot.training_analytics && (
+                    <span className="font-mono text-[10px] text-[#57b8d8]">
+                      ({snapshot.training_analytics.agent_count})
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
       )}
 
-      {/* Full-Bleed 3D World Canvas (guarded by ErrorBoundary + 2D Canvas fallback) */}
-      <main className="relative flex-1 overflow-hidden">
+      {/* Main Content */}
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-3 py-5 md:px-6">
         <ErrorBoundary
-          scope="canvas3d"
+          scope="observatory_dashboard"
           diagnosticsLabel={t.diagButton}
           onOpenDiagnostics={() => setDiagnosticsOpen(true)}
         >
-          <WorldCanvas3D
-            t={t}
-            snapshot={snapshot}
-            quality={quality}
-            selectedAgentId={selectedAgentId}
-            followAgent={followAgent}
-            fpvAgent={fpvAgent}
-            replayTarget={replayTarget}
-            resetSignal={resetSignal}
-            flyToSignal={flyToSignal}
-            onSelectAgent={handleSelectAgentFrom3D}
-            onSoftwareGlDetected={setSoftwareGl}
-            onFpsUpdate={setFps}
-            onWebglStatusChange={(st) => {
-              setWebglMode(st.mode);
-              setWebglReason(st.reason);
-            }}
-          />
-        </ErrorBoundary>
+          {!snapshot ? (
+            <EmptyWorldOverlay
+              t={t}
+              uploadError={uploadError}
+              loadingFixture={loadingFixture}
+              liveApiAvailable={liveApiAvailable}
+              creatingLiveWorld={creatingLiveWorld}
+              onUploadFile={(f) => void handleUploadFile(f)}
+              onUploadClick={() => fileInputRef.current?.click()}
+              onMultiImportClick={() => setImporterOpen(true)}
+              onLoadTestFixture={() => void handleLoadTestFixture()}
+              onStartLiveWorld={() => void handleStartLiveWorld()}
+            />
+          ) : (
+            <div className="space-y-4">
+              {uploadError && (
+                <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {t.uploadErrorTitle}: {uploadError}
+                </div>
+              )}
 
-        {/* Honest Empty State when no real snapshot is loaded */}
-        {!snapshot && (
-          <EmptyWorldOverlay
-            t={t}
-            uploadError={uploadError}
-            loadingFixture={loadingFixture}
-            liveApiAvailable={liveApiAvailable}
-            creatingLiveWorld={creatingLiveWorld}
-            onUploadFile={(f) => void handleUploadFile(f)}
-            onUploadClick={() => fileInputRef.current?.click()}
-            onMultiImportClick={() => setImporterOpen(true)}
-            onLoadTestFixture={() => void handleLoadTestFixture()}
-            onStartLiveWorld={() => void handleStartLiveWorld()}
-          />
-        )}
+              {!snapshot.analytics.available_from_engine && (
+                <div className="flex items-start gap-2 rounded border border-[#D99B26]/40 bg-[#D99B26]/10 px-3 py-2 text-xs text-[#F2BE49]">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{t.legacyAnalyticsNotice}</span>
+                </div>
+              )}
 
-        {/* Strictly Bounded First-Person View Sensory HUD */}
-        {fpvAgent && !zenMode && (
-          <FpvHud t={t} agent={fpvAgent} onExitFpv={() => setFpvAgentId(null)} />
-        )}
-
-        {/* Single Slide-Over Drawer */}
-        <AnimatePresence>
-          {snapshot && activeDrawer && !zenMode && !fpvAgent && (
-            <motion.aside
-              key={activeDrawer}
-              initial={{opacity: 0, x: locale === 'ar' ? -24 : 24}}
-              animate={{opacity: 1, x: 0}}
-              exit={{opacity: 0, x: locale === 'ar' ? -24 : 24}}
-              transition={{duration: 0.18}}
-              className="pointer-events-auto absolute bottom-28 top-3 end-3 z-20 flex w-[calc(100%-1.5rem)] max-w-[440px] flex-col rounded-md border border-white/15 bg-[#121821]/95 shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5">
-                <h2 className="text-sm font-bold text-[#E6EDF3]">{drawerTitle}</h2>
-                <button
-                  type="button"
-                  onClick={() => setActiveDrawer(null)}
-                  className="rounded p-1 text-[#9FB0C3] transition hover:bg-white/10 hover:text-[#E6EDF3]"
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeSection}
+                  initial={{opacity: 0, y: 6}}
+                  animate={{opacity: 1, y: 0}}
+                  exit={{opacity: 0, y: -4}}
+                  transition={{duration: 0.16}}
                 >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+                  {activeSection === 'overview' && (
+                    <div className="space-y-5 text-xs">
+                      {/* Executive KPI Strip */}
+                      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <Users className="h-3.5 w-3.5 text-[#57b8d8]" />
+                            <span>{t.livingLabel} / {t.totalEverLived}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-emerald-300">
+                            {snapshot.analytics.population.living_count}{' '}
+                            <span className="text-xs font-normal text-[#9FB0C3]">
+                              / {snapshot.analytics.population.total_ever_lived}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                            {t.birthsTotal}: {snapshot.analytics.population.births_total}
+                          </div>
+                        </div>
 
-              <div className="flex-1 overflow-y-auto p-3.5">
-                {activeDrawer === 'inspector' && (
-                  <AgentInspector
-                    t={t}
-                    agent={selectedAgent}
-                    agentLookup={agentLookup}
-                    onSelectAgent={(id) => setSelectedAgentId(id)}
-                    onFlyToAgent={handleFlyToAgent}
-                    onEnterFpv={handleEnterFpv}
-                  />
-                )}
-                {activeDrawer === 'population' && (
-                  <PopulationDrawer
-                    t={t}
-                    snapshot={snapshot}
-                    selectedAgentId={selectedAgentId}
-                    agentLookup={agentLookup}
-                    onSelectAgent={(id) => {
-                      setSelectedAgentId(id);
-                    }}
-                    onFlyToAgent={handleFlyToAgent}
-                  />
-                )}
-                {activeDrawer === 'civilization' && (
-                  <CivilizationDrawer t={t} snapshot={snapshot} />
-                )}
-                {activeDrawer === 'history' && (
-                  <HistoryDrawer
-                    t={t}
-                    snapshot={snapshot}
-                    replayTarget={replayTarget}
-                    onReplayEvent={handleReplayEvent}
-                    onClearReplay={() => setReplayTarget(null)}
-                    onSelectAgent={(id) => {
-                      setSelectedAgentId(id);
-                      setActiveDrawer('inspector');
-                      handleFlyToAgent(id);
-                    }}
-                  />
-                )}
-                {activeDrawer === 'telemetry' && (
-                  <TelemetryDrawer t={t} snapshot={snapshot} />
-                )}
-                {activeDrawer === 'comparison' && (
-                  <ComparisonDrawer
-                    t={t}
-                    snapshot={snapshot}
-                    liveApiAvailable={liveApiAvailable}
-                    liveTimelines={liveTimelines}
-                    importedPairSnapshots={importedPairSnapshots}
-                    onSelectAgent={(id) => {
-                      setSelectedAgentId(id);
-                      setActiveDrawer('inspector');
-                      handleFlyToAgent(id);
-                    }}
-                  />
-                )}
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <HeartCrack className="h-3.5 w-3.5 text-red-400" />
+                            <span>{t.avgLifespan}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-[#E6EDF3]">
+                            {safeFixed(snapshot.analytics.survival.avg_lifespan_ticks, 1)}{' '}
+                            <span className="text-xs font-normal text-[#9FB0C3]">{t.tickUnit}</span>
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-red-300">
+                            {t.prematureRate}: {safeFixed(snapshot.analytics.survival.premature_death_rate_pct, 1)}%
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <Sprout className="h-3.5 w-3.5 text-emerald-400" />
+                            <span>{t.foodConsumedTotal}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-[#F2BE49]">
+                            {safeFixed(snapshot.analytics.food_water.food_consumed_total, 1)}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                            {t.availConsumableFood}: {safeFixed(snapshot.analytics.food_water.available_consumable_food, 0)}
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <Droplets className="h-3.5 w-3.5 text-[#57b8d8]" />
+                            <span>{t.waterConsumedTotal}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-[#57b8d8]">
+                            {safeFixed(snapshot.analytics.food_water.water_consumed_total, 1)}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                            {t.availWaterSources}: {snapshot.analytics.food_water.available_water_sources}
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <Coins className="h-3.5 w-3.5 text-[#D99B26]" />
+                            <span>{t.totalBarters} / {t.giniIndex}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-[#E6EDF3]">
+                            {snapshot.analytics.social_civilization.barters_count}{' '}
+                            <span className="text-xs font-normal text-[#57b8d8]">
+                              · {safeFixed(snapshot.analytics.economy.wealth_distribution.gini_inventory, 3)}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                            {t.activeGroups}: {snapshot.analytics.social_civilization.active_groups_count}
+                          </div>
+                        </div>
+
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-3">
+                          <div className="flex items-center gap-1.5 text-[11px] text-[#9FB0C3]">
+                            <Brain className="h-3.5 w-3.5 text-[#F2BE49]" />
+                            <span>{t.totalBrainUpdates}</span>
+                          </div>
+                          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-[#F2BE49]">
+                            {snapshot.analytics.learning_intelligence.total_brain_updates.toLocaleString()}
+                          </div>
+                          <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                            {t.skillsAcquired}: {snapshot.analytics.learning_intelligence.total_skills_acquired}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Training Banner Summary if Present */}
+                      {snapshot.training_analytics && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#3B82A6]/50 bg-[#3B82A6]/10 p-4">
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+                              <Layers className="h-4 w-4" />
+                              <span>{t.trainTitle}</span>
+                            </div>
+                            <div className="text-[11px] text-[#9FB0C3]">
+                              {t.trainTicksExec}: {snapshot.training_analytics.training_ticks_executed} ·{' '}
+                              {t.trainTotalAttempts}: {snapshot.training_analytics.total_attempts} ·{' '}
+                              {t.trainAvgSurvival}: {safeFixed(snapshot.training_analytics.survival_avg_ticks, 1)} {t.tickUnit} ·{' '}
+                              {t.trainLongestSurvival}: {snapshot.training_analytics.longest_survival_ticks} {t.tickUnit}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setActiveSection('training')}
+                            className="rounded border border-[#D99B26]/60 bg-[#D99B26]/20 px-3 py-1.5 text-xs font-semibold text-[#F2BE49] hover:bg-[#D99B26]/30"
+                          >
+                            {t.navTraining}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Ecosystem Conditions & Milestones */}
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <section className="space-y-2.5 rounded-md border border-white/10 bg-[#121821] p-4">
+                          <h3 className="flex items-center gap-1.5 font-semibold text-emerald-300">
+                            <CloudSun className="h-4 w-4" />
+                            <span>
+                              {t.weatherLabel}: {t.weather[snapshot.ecosystem.weather.condition] ?? snapshot.ecosystem.weather.condition} (
+                              {safeFixed(snapshot.ecosystem.weather.temperature_c, 1)}°C)
+                            </span>
+                          </h3>
+                          <div className="grid grid-cols-2 gap-2 font-mono text-[11px] sm:grid-cols-3">
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.foodBiomass}</div>
+                              <div className="font-bold text-emerald-300">{safeFixed(snapshot.ecosystem.total_food_biomass, 0)}</div>
+                            </div>
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.woodBiomass}</div>
+                              <div className="font-bold text-[#F2BE49]">{safeFixed(snapshot.ecosystem.total_wood_biomass, 0)}</div>
+                            </div>
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.soilMoisture}</div>
+                              <div className="font-bold text-[#57b8d8]">
+                                {safeFixed(snapshot.ecosystem.avg_soil_moisture * 100, 1)}%
+                              </div>
+                            </div>
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.herbivores}</div>
+                              <div className="font-bold text-[#E6EDF3]">{snapshot.ecosystem.herbivores_alive}</div>
+                            </div>
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.predators}</div>
+                              <div className="font-bold text-red-300">{snapshot.ecosystem.predators_alive}</div>
+                            </div>
+                            <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                              <div className="text-[10px] text-[#9FB0C3]">{t.stabilityIndex}</div>
+                              <div className="font-bold text-[#57b8d8]">
+                                {snapshot.crime_and_stability.stability_index !== null
+                                  ? `${safeFixed(snapshot.crime_and_stability.stability_index * 100, 0)}%`
+                                  : '—'}
+                              </div>
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="space-y-2.5 rounded-md border border-white/10 bg-[#121821] p-4">
+                          <h3 className="flex items-center gap-1.5 font-semibold text-[#F2BE49]">
+                            <Milestone className="h-4 w-4" />
+                            <span>{t.milestonesTitle}</span>
+                          </h3>
+                          {achievedMilestones.length === 0 ? (
+                            <div className="rounded border border-white/10 bg-[#18212C] p-4 text-center text-[#9FB0C3]">
+                              {t.notYetInvented}
+                            </div>
+                          ) : (
+                            <div className="grid max-h-40 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                              {achievedMilestones.map(([k, tickVal]) => (
+                                <div
+                                  key={k}
+                                  className="flex items-center justify-between rounded border border-white/10 bg-[#18212C] px-2.5 py-1.5 text-[11px]"
+                                >
+                                  <span className="truncate text-[#E6EDF3]">{t.milestones[k] ?? k}</span>
+                                  <span className="font-mono text-[#F2BE49]">T{tickVal}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      </div>
+
+                      {/* Time-Series Telemetry Charts */}
+                      <TelemetryDrawer t={t} locale={locale} snapshot={snapshot} />
+                    </div>
+                  )}
+
+                  {activeSection === 'population' && (
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                      <div className="lg:col-span-7">
+                        <PopulationDrawer
+                          t={t}
+                          snapshot={snapshot}
+                          selectedAgentId={selectedAgentId}
+                          agentLookup={agentLookup}
+                          onSelectAgent={(id) => setSelectedAgentId(id)}
+                        />
+                      </div>
+                      <div className="lg:col-span-5">
+                        <div className="sticky top-20 rounded-md border border-white/10 bg-[#121821] p-4">
+                          <AgentInspector
+                            t={t}
+                            agent={selectedAgent}
+                            agentLookup={agentLookup}
+                            onSelectAgent={(id) => setSelectedAgentId(id)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeSection === 'survival' && <SurvivalPanel t={t} snapshot={snapshot} />}
+                  {activeSection === 'resources' && <ResourcesPanel t={t} snapshot={snapshot} />}
+                  {activeSection === 'civilization' && (
+                    <CivilizationDrawer t={t} snapshot={snapshot} />
+                  )}
+                  {activeSection === 'learning' && <LearningPanel t={t} snapshot={snapshot} />}
+                  {activeSection === 'training' && (
+                    <TrainingPanel t={t} snapshot={snapshot} onSelectAgent={handleInspectAgent} />
+                  )}
+
+                  {activeSection === 'history' && (
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+                      <div className="xl:col-span-7">
+                        <HistoryDrawer
+                          t={t}
+                          snapshot={snapshot}
+                          replayTarget={replayTarget}
+                          onReplayEvent={setReplayTarget}
+                          onClearReplay={() => setReplayTarget(null)}
+                          onSelectAgent={handleInspectAgent}
+                        />
+                      </div>
+                      <div className="xl:col-span-5">
+                        <div className="rounded-md border border-white/10 bg-[#121821] p-4">
+                          <ComparisonDrawer
+                            t={t}
+                            snapshot={snapshot}
+                            liveApiAvailable={liveApiAvailable}
+                            liveTimelines={liveTimelines}
+                            importedPairSnapshots={importedPairSnapshots}
+                            onSelectAgent={handleInspectAgent}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Subtle Activity Footer Line */}
+              <div className="flex items-center justify-between border-t border-white/10 pt-3 text-[11px] text-[#9FB0C3]">
+                <span className="flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 text-[#3B82A6]" />
+                  <span>{t.worldIdLabel}: {snapshot.world_id}</span>
+                </span>
+                <span className="font-mono">
+                  v{snapshot.export_schema_version} · {snapshot.backend}
+                </span>
               </div>
-            </motion.aside>
+            </div>
           )}
-        </AnimatePresence>
-
-        {/* Interactive Timeline Bar */}
-        {!zenMode && !fpvAgent && (
-          <TimelineBar
-            t={t}
-            snapshot={snapshot}
-            liveApiAvailable={liveApiAvailable}
-            liveTimelines={liveTimelines}
-            activeRunId={activeRunId}
-            isPlaying={isPlaying}
-            isStepping={isStepping}
-            speed={simSpeed}
-            frameTicks={frameTicks}
-            isHistoricalMode={isHistoricalMode}
-            historicalTick={historicalTick}
-            onSelectRun={(id) => void handleSelectLiveRun(id)}
-            onTogglePlay={() => setIsPlaying((p) => !p)}
-            onStepOnce={() => void stepLiveSimulation(1)}
-            onChangeSpeed={setSimSpeed}
-            onScrubTick={(tk) => void handleScrubTick(tk)}
-            onReturnToLive={() => void handleReturnToLive()}
-            onBranchRebirth={() => void handleBranchRebirth()}
-          />
-        )}
-
-        {/* Bottom Command Dock */}
-        <BottomDock
-          t={t}
-          hasSnapshot={Boolean(snapshot)}
-          activeDrawer={activeDrawer}
-          zenMode={zenMode}
-          hasSelectedAgent={selectedAgentId !== null}
-          followAgent={followAgent}
-          isFpv={Boolean(fpvAgent)}
-          onSelectDrawer={setActiveDrawer}
-          onToggleZen={() => setZenMode((prev) => !prev)}
-          onResetCamera={() => {
-            setFollowAgent(false);
-            setReplayTarget(null);
-            setResetSignal((n) => n + 1);
-          }}
-          onToggleFollow={() => setFollowAgent((prev) => !prev)}
-        />
-
-        {/* Unlimited Multi-File JSON Importer Modal */}
-        <JsonImporterModal
-          t={t}
-          open={importerOpen}
-          canRollback={rollbackState !== null}
-          onClose={() => setImporterOpen(false)}
-          onCommitBundle={handleCommitImportedBundle}
-          onRollback={handleRollbackImport}
-        />
-
-        {/* Client Diagnostics & Error Guard Modal */}
-        <DiagnosticsModal
-          t={t}
-          open={diagnosticsOpen}
-          snapshot={snapshot}
-          webglStatus={{
-            mode: webglMode,
-            reason: webglReason,
-            softwareGl,
-          }}
-          onClose={() => setDiagnosticsOpen(false)}
-        />
+        </ErrorBoundary>
       </main>
+
+      {/* Unlimited Multi-File JSON Importer Modal */}
+      <JsonImporterModal
+        t={t}
+        open={importerOpen}
+        canRollback={rollbackState !== null}
+        onClose={() => setImporterOpen(false)}
+        onCommitBundle={handleCommitImportedBundle}
+        onRollback={handleRollbackImport}
+      />
+
+      {/* Client Diagnostics & Error Guard Modal */}
+      <DiagnosticsModal
+        t={t}
+        open={diagnosticsOpen}
+        snapshot={snapshot}
+        sourceMode={sourceMode}
+        onClose={() => setDiagnosticsOpen(false)}
+      />
     </div>
   );
 }

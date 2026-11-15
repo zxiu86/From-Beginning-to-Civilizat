@@ -1,6 +1,9 @@
 'use client';
 
-import type {ObservatorySnapshot} from './types';
+import {safeFixed} from './formatters';
+import type {ObservatorySnapshot, SnapshotSourceMode} from './types';
+
+export {safeFixed};
 
 export interface DiagnosticEntry {
   id: string;
@@ -96,7 +99,6 @@ export function reportClientError(
 export function getDiagnosticEntries(): DiagnosticEntry[] {
   if (typeof window === 'undefined') return [];
   const store = getStore();
-  // Merge any late arrivals written directly to window.__OBS_DIAGNOSTICS__
   if (Array.isArray(window.__OBS_DIAGNOSTICS__) && window.__OBS_DIAGNOSTICS__.length > store.entries.length) {
     const knownIds = new Set(store.entries.map((e) => e.id));
     for (const raw of window.__OBS_DIAGNOSTICS__) {
@@ -117,11 +119,6 @@ export function clearDiagnostics(): void {
   notifyDiagnosticsListeners();
 }
 
-export function safeFixed(val: unknown, digits = 1, fallback = '0'): string {
-  if (typeof val !== 'number' || !Number.isFinite(val)) return fallback;
-  return val.toFixed(digits);
-}
-
 export function safeFormatDate(iso: unknown): string {
   if (typeof iso !== 'string' || !iso) return '—';
   const d = new Date(iso);
@@ -135,16 +132,19 @@ export function safeFormatDate(iso: unknown): string {
 
 export function buildDiagnosticReport(
   snapshot: ObservatorySnapshot | null,
-  webglStatus: {mode: 'webgl' | 'fallback_2d'; reason: string | null; softwareGl: boolean},
+  sourceMode: SnapshotSourceMode = 'empty',
 ): Record<string, unknown> {
   return {
     generated_at_utc: new Date().toISOString(),
     location_pathname: typeof window !== 'undefined' ? window.location.pathname : '',
     user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
-    renderer: webglStatus,
+    observatory_mode: '2d_statistics_dashboard',
+    source_mode: sourceMode,
     snapshot_summary: snapshot
       ? {
           export_schema_version: snapshot.export_schema_version,
+          exported_at_utc: snapshot.exported_at_utc,
+          simulation_phase: snapshot.simulation_phase,
           world_id: snapshot.world_id,
           timeline_id: snapshot.timeline_id,
           timeline_kind: snapshot.timeline_kind,
@@ -152,6 +152,8 @@ export function buildDiagnosticReport(
           sim_date: snapshot.clock.sim_date,
           living_count: snapshot.demographics.living_count,
           deceased_count: snapshot.demographics.deceased_count,
+          analytics_from_engine: snapshot.analytics.available_from_engine,
+          has_training_analytics: Boolean(snapshot.training_analytics),
           recovery_cycle_count: snapshot.recovery_state?.recovery_cycle_count ?? 0,
           current_cycle_number: snapshot.recovery_state?.current_cycle_number ?? 1,
         }

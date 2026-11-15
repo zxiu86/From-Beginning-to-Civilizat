@@ -3,8 +3,7 @@
 import React, {useState} from 'react';
 import {
   Baby,
-  Compass,
-  Eye,
+  GraduationCap,
   HeartPulse,
   MessageSquare,
   Navigation,
@@ -13,7 +12,7 @@ import {
   Skull,
   Users,
 } from 'lucide-react';
-import {safeFixed} from '@/lib/observatory/diagnostics';
+import {formatCoords, safeFixed} from '@/lib/observatory/formatters';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {AnyAgentRecord, LivingAgentFull} from '@/lib/observatory/types';
 
@@ -22,8 +21,6 @@ interface AgentInspectorProps {
   agent: AnyAgentRecord | null;
   agentLookup: Map<number, AnyAgentRecord>;
   onSelectAgent: (agentId: number) => void;
-  onFlyToAgent: (agentId: number) => void;
-  onEnterFpv: (agentId: number) => void;
 }
 
 function MeterBar({label, value, dangerWhenHigh = false}: {label: string; value: number; dangerWhenHigh?: boolean}) {
@@ -49,8 +46,6 @@ export default function AgentInspector({
   agent,
   agentLookup,
   onSelectAgent,
-  onFlyToAgent,
-  onEnterFpv,
 }: AgentInspectorProps) {
   const [searchId, setSearchId] = useState('');
   const [notFound, setNotFound] = useState(false);
@@ -64,7 +59,6 @@ export default function AgentInspector({
     }
     setNotFound(false);
     onSelectAgent(id);
-    onFlyToAgent(id);
   };
 
   const livingAgent: LivingAgentFull | null = agent && agent.is_alive ? agent : null;
@@ -143,33 +137,59 @@ export default function AgentInspector({
               <div>
                 {t.genShort} {agent.generation}
               </div>
-              <div>
-                ({Math.round(agent.x)}, {Math.round(agent.y)})
-              </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => onFlyToAgent(agent.agent_id)}
-                className="flex items-center gap-1.5 rounded border border-white/15 bg-[#121821] px-2.5 py-1.5 text-[11px] font-medium text-[#E6EDF3] transition hover:border-[#D99B26]/60"
-              >
-                <Compass className="h-3.5 w-3.5 text-[#D99B26]" />
-                <span>{t.followAgent}</span>
-              </button>
-
-              {livingAgent && (
-                <button
-                  type="button"
-                  onClick={() => onEnterFpv(livingAgent.agent_id)}
-                  className="flex items-center gap-1.5 rounded border border-[#3B82A6]/60 bg-[#3B82A6]/20 px-2.5 py-1.5 text-[11px] font-semibold text-[#57b8d8] transition hover:bg-[#3B82A6]/30"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  <span>{t.enterFpv}</span>
-                </button>
-              )}
+              <div>{formatCoords(agent.x, agent.y)}</div>
             </div>
           </div>
+
+          {/* Isolated Training History Summary (preserved post-promotion) */}
+          {agent.training_stats && (
+            <div className="space-y-2 rounded border border-[#D99B26]/40 bg-[#D99B26]/10 p-3">
+              <h3 className="flex items-center gap-1.5 font-semibold text-[#F2BE49]">
+                <GraduationCap className="h-3.5 w-3.5" />
+                <span>{t.trainTitle}</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums sm:grid-cols-3">
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColAttempts}</div>
+                  <div className="font-bold">{agent.training_stats.training_attempts}</div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColDeaths}</div>
+                  <div className="font-bold">{agent.training_stats.training_deaths}</div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColLongest}</div>
+                  <div className="font-bold text-emerald-300">
+                    {agent.training_stats.longest_survival_ticks}
+                  </div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColFoodStages}</div>
+                  <div>
+                    {agent.training_stats.food_discovered_count}/
+                    {agent.training_stats.food_reach_decisions_count}/
+                    {agent.training_stats.food_reached_count}/
+                    {agent.training_stats.food_consumed_count}
+                  </div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColWaterStages}</div>
+                  <div>
+                    {agent.training_stats.water_discovered_count}/
+                    {agent.training_stats.water_reach_decisions_count}/
+                    {agent.training_stats.water_reached_count}/
+                    {agent.training_stats.water_consumed_count}
+                  </div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="font-sans text-[10px] text-[#9FB0C3]">{t.trainColLearnScore}</div>
+                  <div className="font-bold text-[#57b8d8]">
+                    {safeFixed(agent.training_stats.learning_level_score, 2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Rebirth & Death-Penalty Learning Card */}
           {showRebirthCard && (
@@ -367,12 +387,16 @@ export default function AgentInspector({
 
             <div className="space-y-1.5 rounded border border-white/10 bg-[#18212C] p-3">
               <h3 className="font-semibold">{t.skillsSection}</h3>
-              {Object.entries(agent.skills).map(([k, v]) => (
-                <div key={k} className="flex justify-between text-[11px]">
-                  <span className="text-[#9FB0C3]">{t.skills[k] ?? k}</span>
-                  <span className="font-mono tabular-nums text-[#F2BE49]">{safeFixed(v, 2)}</span>
-                </div>
-              ))}
+              {Object.keys(agent.skills).length === 0 ? (
+                <div className="text-[11px] text-[#9FB0C3]">—</div>
+              ) : (
+                Object.entries(agent.skills).map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-[11px]">
+                    <span className="text-[#9FB0C3]">{t.skills[k] ?? k}</span>
+                    <span className="font-mono tabular-nums text-[#F2BE49]">{safeFixed(v, 2)}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -498,7 +522,7 @@ export default function AgentInspector({
                   >
                     <span className="text-[#E6EDF3]">{sm.resource_kind}</span>
                     <span className="text-[#9FB0C3]">
-                      ({Math.round(sm.x)}, {Math.round(sm.y)}) · {safeFixed(sm.estimated_amount, 1)}
+                      {formatCoords(sm.x, sm.y)} · {safeFixed(sm.estimated_amount, 1)}
                     </span>
                   </div>
                 ))}

@@ -9,6 +9,9 @@ export interface Translations {
   sourceTestFixture: string;
   sourceLiveRunner: string;
   testFixtureWarning: string;
+  phaseTraining: string;
+  phaseCivilization: string;
+  legacyAnalyticsNotice: string;
   uploadSnapshotBtn: string;
   multiImportBtn: string;
   loadTestFixtureBtn: string;
@@ -22,31 +25,6 @@ export interface Translations {
   emptyStep2: string;
   emptyStep3: string;
   uploadErrorTitle: string;
-  qualityLow: string;
-  qualityMedium: string;
-  qualityHigh: string;
-  qualityUltra: string;
-  fpsLabel: string;
-  softwareGlBanner: string;
-  zenEnter: string;
-  zenExit: string;
-  resetCamera: string;
-  followAgent: string;
-  followingAgent: string;
-  stopFollow: string;
-  enterFpv: string;
-  exitFpv: string;
-  fpvTitle: string;
-  fpvSubtitle: string;
-  fpvVisionRadius: string;
-  fpvHearingRadius: string;
-  fpvVisibleAgents: string;
-  fpvVisibleFauna: string;
-  fpvVisibleArtifacts: string;
-  fpvLocalResources: string;
-  fpvHeardSignals: string;
-  fpvNoSignals: string;
-  fpvBlindNotice: string;
   simClockLabel: string;
   realClockLabel: string;
   clockRatioNote: string;
@@ -54,6 +32,7 @@ export interface Translations {
   worldIdLabel: string;
   timelineOriginal: string;
   timelineExperimental: string;
+  timelineIsolatedTraining: string;
   timelineBranchTick: string;
   livingLabel: string;
   deceasedLabel: string;
@@ -61,12 +40,131 @@ export interface Translations {
   seasonLabel: string;
   weatherLabel: string;
   tempLabel: string;
-  tabInspector: string;
-  tabPopulation: string;
-  tabCivilization: string;
-  tabHistory: string;
-  tabTelemetry: string;
-  tabComparison: string;
+
+  // Navigation Tabs (8 Professional Statistics Views)
+  navOverview: string;
+  navPopulation: string;
+  navSurvival: string;
+  navResources: string;
+  navCivilization: string;
+  navLearning: string;
+  navTraining: string;
+  navHistory: string;
+
+  // Overview & Population
+  totalEverLived: string;
+  birthsTotal: string;
+  maleCount: string;
+  femaleCount: string;
+  avgAgeYears: string;
+  youngestLiving: string;
+  oldestLiving: string;
+  birthRate1k: string;
+  deathRate1k: string;
+  netGrowthRate1k: string;
+  genBreakdownTitle: string;
+  familyUnitsCount: string;
+  avgFamilySize: string;
+  independentAdults: string;
+  dependentsCount: string;
+
+  // Survival Section
+  survTitle: string;
+  avgLifespan: string;
+  longestLifespan: string;
+  shortestLifespan: string;
+  prematureDeaths: string;
+  prematureRate: string;
+  naturalVsViolent: string;
+  naturalDeaths: string;
+  violentDeaths: string;
+  deathsByCauseTitle: string;
+  survivalByGenTitle: string;
+  noDeathsRecorded: string;
+
+  // Food, Water & 6-Stage Funnel
+  resTitle: string;
+  availConsumableFood: string;
+  foodConsumedTotal: string;
+  foodConsRate: string;
+  availWaterSources: string;
+  waterConsumedTotal: string;
+  waterConsRate: string;
+  agentsHungry: string;
+  agentsThirsty: string;
+  avgHungerDur: string;
+  avgThirstDur: string;
+  starvationDeaths: string;
+  dehydrationDeaths: string;
+  nearbyFoodFailures: string;
+  nearbyWaterFailures: string;
+  foodFunnelTitle: string;
+  waterFunnelTitle: string;
+  regionalResourcesTitle: string;
+  regionLabel: string;
+  funnelStages: Record<string, string>;
+
+  // Economy & Wealth
+  econProdConsTitle: string;
+  foodCultivated: string;
+  woodGathered: string;
+  stoneGathered: string;
+  herbGathered: string;
+  toolsCrafted: string;
+  storedInventoriesTitle: string;
+  scarceResourcesTitle: string;
+  noScarceResources: string;
+  wealthDistTitle: string;
+  giniIndex: string;
+  medianInventory: string;
+  maxInventory: string;
+  top10Share: string;
+
+  // Intelligence & Learning
+  learnTitle: string;
+  expStored: string;
+  totalBrainUpdates: string;
+  skillsAcquired: string;
+  avgSkillsPerAgent: string;
+  foodDiscoverReach: string;
+  waterDiscoverReach: string;
+  episodicTotal: string;
+  spatialTotal: string;
+  intergenTransfers: string;
+  updatesStdDev: string;
+  rewardStdDev: string;
+  repeatedErrors: string;
+  postNegSwitches: string;
+  rlScopeBadge: string;
+
+  // Training 100 Agents
+  trainTitle: string;
+  trainSubtitle: string;
+  trainNoData: string;
+  trainTicksExec: string;
+  trainTotalAttempts: string;
+  trainTotalDeaths: string;
+  trainAvgSurvival: string;
+  trainLongestSurvival: string;
+  trainStageMatrixTitle: string;
+  trainProgressionChartTitle: string;
+  trainTableTitle: string;
+  trainSearchPlaceholder: string;
+  trainSortBy: string;
+  trainColAgent: string;
+  trainColAttempts: string;
+  trainColDeaths: string;
+  trainColLongest: string;
+  trainColAvgSurv: string;
+  trainColFoodStages: string;
+  trainColWaterStages: string;
+  trainColSkillsMem: string;
+  trainColLearnScore: string;
+  trainColLastCause: string;
+  trainColStatus: string;
+  trainAttemptHistoryTitle: string;
+
+  // Agent Inspector & Registry
   searchAgentPlaceholder: string;
   searchButton: string;
   selectAgentPrompt: string;
@@ -78,6 +176,7 @@ export interface Translations {
   ageYears: string;
   tickUnit: string;
   genShort: string;
+  coordsLabel: string;
   vitalsSection: string;
   health: string;
   hunger: string;
@@ -119,6 +218,8 @@ export interface Translations {
   ageDistTitle: string;
   familyTreeTitle: string;
   selectRootForTree: string;
+
+  // Civilization Systems
   civLangTitle: string;
   civEconTitle: string;
   civSocietyTitle: string;
@@ -129,6 +230,8 @@ export interface Translations {
   engineScopeNoteBody: string;
   activeTokens: string;
   stableProtowords: string;
+  adoptersLabel: string;
+  extinctWordLabel: string;
   topBigrams: string;
   dialects: string;
   semanticDrift: string;
@@ -159,6 +262,12 @@ export interface Translations {
   insufficientWindow: string;
   repeatOffenders: string;
   lastCrimeLabel: string;
+  cooperationLabel: string;
+  mutualAidLabel: string;
+  teachingLabel: string;
+  cultivationLabel: string;
+
+  // History & Replay
   historyFilterAll: string;
   historyFilterYearPlaceholder: string;
   historyFilterAgentPlaceholder: string;
@@ -175,7 +284,7 @@ export interface Translations {
   layer2Subtitle: string;
   layer3Title: string;
   layer3Subtitle: string;
-  replayEventBtn: string;
+  inspectLocationBtn: string;
   clearReplayBtn: string;
   replayingBanner: string;
   replayFrameHonesty: string;
@@ -190,6 +299,7 @@ export interface Translations {
   herbivores: string;
   predators: string;
   soilMoisture: string;
+
   // Timeline Bar
   tlPlay: string;
   tlPause: string;
@@ -199,13 +309,15 @@ export interface Translations {
   tlHistoricalPreview: string;
   tlReturnLive: string;
   tlTimelineSelector: string;
-  // Comparison Drawer
+
+  // Comparison
   cmpTitle: string;
   cmpOriginalLabel: string;
   cmpExperimentalLabel: string;
   cmpNoPairs: string;
   cmpSurvivalRate: string;
   cmpRebirthAuditTitle: string;
+
   // Multi-file JSON Importer
   impTitle: string;
   impSelectFiles: string;
@@ -219,10 +331,11 @@ export interface Translations {
   impCommitBtn: string;
   impRollbackBtn: string;
   impCloseBtn: string;
-  // Diagnostics, 2D Fallback, Recovery Cycles & Learning Telemetry
+
+  // Diagnostics & Recovery & Learning Telemetry
   diagButton: string;
   diagTitle: string;
-  diagRendererLabel: string;
+  diagModeLabel: string;
   diagCycleLabel: string;
   diagSchemaLabel: string;
   diagErrorLogLabel: string;
@@ -231,9 +344,6 @@ export interface Translations {
   diagCopyBtn: string;
   diagCopied: string;
   diagDownloadBtn: string;
-  fallbackBannerTitle: string;
-  fallbackBannerDesc: string;
-  fallbackRetryWebgl: string;
   recoverySectionTitle: string;
   recoveryCurrentCycle: string;
   recoveryCountLabel: string;
@@ -249,6 +359,7 @@ export interface Translations {
   learningLoss: string;
   learningReward: string;
   deceptionRate: string;
+
   actions: Record<string, string>;
   causes: Record<string, string>;
   seasons: Record<string, string>;
@@ -263,14 +374,18 @@ export interface Translations {
 }
 
 const AR: Translations = {
-  appTitle: 'مرصد الحضارة',
-  appSubtitle: 'البداية إلى الحضارة — المحاكاة الحضارية والخطوط الزمنية',
+  appTitle: 'مرصد إحصائيات الحضارة',
+  appSubtitle: 'البداية إلى الحضارة — التدريب المعزول، التحليلات السكانية، والسجل الحضاري الدقيق',
   sourceEmpty: 'بانتظار لقطة محاكاة',
   sourcePublished: 'لقطة حقيقية منشورة',
   sourceUploaded: 'ملف/حزمة محلية مستوردة',
   sourceTestFixture: 'بيانات اختبارية تجريبية (معزولة)',
   sourceLiveRunner: 'محاكاة حية عبر المحرك',
   testFixtureWarning: 'تنبيه: هذه اللقطة اختبارية معزولة وليست عالماً حياً مستمراً.',
+  phaseTraining: 'مرحلة التدريب المعزول (100 فرد)',
+  phaseCivilization: 'مرحلة العالم الحضاري الكامل',
+  legacyAnalyticsNotice:
+    'ملاحظة: هذه اللقطة من إصدار قديم لا يتضمن عدادات قمع الموارد أو بعض مقاييس الخطوات؛ تُعرض فقط الأرقام الحقيقية المشتقة من البيانات الموجودة.',
   uploadSnapshotBtn: 'رفع ملف JSON',
   multiImportBtn: 'استيراد ملفات / مجلدات',
   loadTestFixtureBtn: 'معاينة بيانات اختبارية معزولة',
@@ -278,38 +393,13 @@ const AR: Translations = {
   newWorldBtn: 'عالم جديد حي',
   emptyHeadline: 'لا توجد لقطة عالم حقيقية محمّلة بعد',
   emptyBody:
-    'يعرض هذا المرصد الحالة الفعلية لمحرك البداية إلى الحضارة فقط دون اصطناع تاريخ أو مبانٍ غير موجودة. يمكنك تشغيل عالم حي محلي، أو استيراد ملف أو مجلد كامل من مخرجات المحرك، أو معاينة البيئة الاختبارية.',
+    'يعرض هذا المرصد التحليلات الإحصائية الفعلية لمحرك البداية إلى الحضارة فقط دون أي بيانات وهمية أو اصطناعية. يمكنك تشغيل عالم حي محلي، أو استيراد ملف/مجلد مخرجات المحرك (التدريب المعزول أو العالم الحضاري)، أو معاينة العينة الاختبارية.',
   emptyDropHint: 'اسحب وأفلت ملف observatory_export.json أو مجلد الخطوات هنا',
   emptyStepsTitle: 'مسارات التشغيل والاستيراد الحقيقية',
-  emptyStep1: '1. أنشئ عالماً حياً عبر الخادم المحلي، أو شغّل Workflow المحاكاة يدوياً على GitHub.',
-  emptyStep2: '2. استورد ملفاً واحداً أو مئات ملفات الخطوات مع التحقق التسلسلي والطوبولوجي.',
-  emptyStep3: '3. أنشئ فرعاً زمنياً تجريبياً لإحياء المتوفين ومقارنة النتائج بين الخطين.',
+  emptyStep1: '1. نفّذ التدريب المعزول أو انقل السكان إلى العالم الكامل عبر GitHub Actions يدوياً.',
+  emptyStep2: '2. استورد ملف observatory_export.json أو مجلد خطوات كاملة مع التحقق الطوبولوجي.',
+  emptyStep3: '3. تفحّص مؤشرات البقاء، قمع الغذاء والماء من 6 مراحل، وسجلات الأفراد الـ 100.',
   uploadErrorTitle: 'تعذّر قراءة ملف اللقطة',
-  qualityLow: 'منخفضة',
-  qualityMedium: 'متوسطة',
-  qualityHigh: 'عالية',
-  qualityUltra: 'فائقة',
-  fpsLabel: 'إطار/ث',
-  softwareGlBanner: 'تم رصد مُصيّر رسومي برمجي — ضُبطت الوتيرة تلقائياً لحماية السلاسة.',
-  zenEnter: 'وضع السينما',
-  zenExit: 'إظهار الواجهة',
-  resetCamera: 'نظرة عامة للعالم',
-  followAgent: 'تتبّع الفرد',
-  followingAgent: 'جارٍ تتبّع الفرد',
-  stopFollow: 'إيقاف التتبّع',
-  enterFpv: 'مشاهدة من عينيه (FPV)',
-  exitFpv: 'الخروج من المنظور الشخصي',
-  fpvTitle: 'الإدراك الحسي المقيّد للفرد',
-  fpvSubtitle: 'رؤية وسمع محليان بالكامل — بدون معرفة غيبية بالعالم أو بنوايا المتحدثين',
-  fpvVisionRadius: 'نطاق الرؤية',
-  fpvHearingRadius: 'نطاق السمع',
-  fpvVisibleAgents: 'أفراد ضمن البصر',
-  fpvVisibleFauna: 'حيوانات مرئية',
-  fpvVisibleArtifacts: 'آثار ونقوش مرئية',
-  fpvLocalResources: 'تقدير الموارد الموضعية',
-  fpvHeardSignals: 'إشارات صوتية وإيماءات مسموعة',
-  fpvNoSignals: 'لم يلتقط أي إشارات صوتية في النطاق القريب.',
-  fpvBlindNotice: 'المعنى المقصود للمتحدث مخفي عمداً — الفرد يسمع الرمز والإيماءة فقط.',
   simClockLabel: 'الزمن المحاكى',
   realClockLabel: 'الزمن الفعلي التراكمي',
   clockRatioNote: '1 دقيقة فعلية = 1 شهر محاكى (في الوضع الزمني الحقيقي)',
@@ -317,6 +407,7 @@ const AR: Translations = {
   worldIdLabel: 'معرّف العالم',
   timelineOriginal: 'الخط الأصلي',
   timelineExperimental: 'فرع الإحياء التجريبي',
+  timelineIsolatedTraining: 'التدريب المعزول',
   timelineBranchTick: 'نقطة التفرّع',
   livingLabel: 'أحياء',
   deceasedLabel: 'متوفون',
@@ -324,15 +415,134 @@ const AR: Translations = {
   seasonLabel: 'الفصل',
   weatherLabel: 'الطقس',
   tempLabel: 'الحرارة',
-  tabInspector: 'الفرد',
-  tabPopulation: 'السكان والأنساب',
-  tabCivilization: 'الأنظمة الحضارية',
-  tabHistory: 'التاريخ والأحداث',
-  tabTelemetry: 'المؤشرات والزمن',
-  tabComparison: 'مقارنة الخطوط',
+
+  navOverview: 'نظرة عامة',
+  navPopulation: 'السكان والأفراد',
+  navSurvival: 'البقاء والوفيات',
+  navResources: 'الغذاء والماء',
+  navCivilization: 'الحضارة والاقتصاد',
+  navLearning: 'الذكاء والتعلّم',
+  navTraining: 'تدريب الـ100 فرد',
+  navHistory: 'التاريخ والمقارنة',
+
+  totalEverLived: 'إجمالي من عاشوا',
+  birthsTotal: 'إجمالي المواليد',
+  maleCount: 'الذكور (أحياء)',
+  femaleCount: 'الإناث (أحياء)',
+  avgAgeYears: 'متوسط العمر (أحياء)',
+  youngestLiving: 'أصغر فرد حي',
+  oldestLiving: 'أكبر فرد حي',
+  birthRate1k: 'معدل المواليد / 1000',
+  deathRate1k: 'معدل الوفيات / 1000',
+  netGrowthRate1k: 'صافي النمو / 1000',
+  genBreakdownTitle: 'توزيع الأجيال',
+  familyUnitsCount: 'الأسر المتشكلة',
+  avgFamilySize: 'متوسط حجم الأسرة',
+  independentAdults: 'بالغون مستقلون',
+  dependentsCount: 'معالون (رضع/أطفال)',
+
+  survTitle: 'تحليلات البقاء وأسباب الوفاة',
+  avgLifespan: 'متوسط مدة البقاء',
+  longestLifespan: 'أطول عمر مسجل',
+  shortestLifespan: 'أقصر عمر مسجل',
+  prematureDeaths: 'الوفيات المبكرة',
+  prematureRate: 'نسبة الوفيات المبكرة',
+  naturalVsViolent: 'وفيات طبيعية مقابل عنيفة',
+  naturalDeaths: 'وفيات طبيعية/بيئية',
+  violentDeaths: 'وفيات عنيفة/افتراس',
+  deathsByCauseTitle: 'توزيع الوفيات حسب السبب الحقيقي',
+  survivalByGenTitle: 'متوسط البقاء حسب الجيل (بالخطوات)',
+  noDeathsRecorded: 'لم تُسجّل وفيات بعد في هذه اللقطة.',
+
+  resTitle: 'تحليلات الغذاء والماء وقمع الوصول (6 مراحل)',
+  availConsumableFood: 'الغذاء المتاح للاستهلاك',
+  foodConsumedTotal: 'إجمالي الغذاء المستهلك',
+  foodConsRate: 'معدل استهلاك الغذاء/خطوة',
+  availWaterSources: 'نقاط/مصادر المياه النشطة',
+  waterConsumedTotal: 'إجمالي المياه المستهلكة',
+  waterConsRate: 'معدل استهلاك الماء/خطوة',
+  agentsHungry: 'أفراد واجهوا الجوع',
+  agentsThirsty: 'أفراد واجهوا العطش',
+  avgHungerDur: 'متوسط مدة الجوع (خطوة)',
+  avgThirstDur: 'متوسط مدة العطش (خطوة)',
+  starvationDeaths: 'وفيات الجوع',
+  dehydrationDeaths: 'وفيات العطش',
+  nearbyFoodFailures: 'إخفاق الوصول لغذاء قريب',
+  nearbyWaterFailures: 'إخفاق الوصول لماء قريب',
+  foodFunnelTitle: 'قمع تفاعل الغذاء ذو المراحل الست',
+  waterFunnelTitle: 'قمع تفاعل الماء ذو المراحل الست',
+  regionalResourcesTitle: 'المقارنة الإقليمية للموارد والسكان (أرباع العالم)',
+  regionLabel: 'الربع الجغرافي',
+  funnelStages: {
+    absent: '1. المورد غير موجود',
+    present_undiscovered: '2. موجود لكن لم يُكتشف',
+    discovered_no_decision: '3. مُكتشف دون قرار وصول',
+    decision_move_failed: '4. قرار وصول فشل حركياً',
+    reached_consume_failed: '5. وصل لكن فشل الاستهلاك',
+    consumed_success: '6. تم التفاعل والاستهلاك بنجاح',
+  },
+
+  econProdConsTitle: 'الإنتاج والاستهلاك التراكمي',
+  foodCultivated: 'غذاء مُنتج/مُستنبت',
+  woodGathered: 'أخشاب مجموعة',
+  stoneGathered: 'حجارة مجموعة',
+  herbGathered: 'أعشاب مجموعة',
+  toolsCrafted: 'أدوات مصنوعة',
+  storedInventoriesTitle: 'المخزون الشخصي الإجمالي لدى الأحياء',
+  scarceResourcesTitle: 'الموارد النادرة حالياً',
+  noScarceResources: 'لا توجد ندرة حادة مسجلة حالياً.',
+  wealthDistTitle: 'توزيع المخزون والثروة بين الأحياء',
+  giniIndex: 'معامل جيني (Gini)',
+  medianInventory: 'وسيط المخزون',
+  maxInventory: 'أعلى مخزون فردي',
+  top10Share: 'حصة أغنى 10%',
+
+  learnTitle: 'مؤشرات التعلّم التجريبي والتعزيزي (RL)',
+  expStored: 'التجارب المخزنة',
+  totalBrainUpdates: 'تحديثات الشبكة العصبية',
+  skillsAcquired: 'إجمالي المهارات المكتسبة',
+  avgSkillsPerAgent: 'متوسط المهارات/فرد',
+  foodDiscoverReach: 'اكتشاف / وصول الغذاء',
+  waterDiscoverReach: 'اكتشاف / وصول الماء',
+  episodicTotal: 'الذكريات العرضية',
+  spatialTotal: 'الخرائط المكانية',
+  intergenTransfers: 'نقل المعرفة بين الأجيال',
+  updatesStdDev: 'تباين التحديثات (StdDev)',
+  rewardStdDev: 'تباين المكافآت (StdDev)',
+  repeatedErrors: 'أفعال فاشلة متكررة',
+  postNegSwitches: 'تغيير القرار بعد نتيجة سلبية',
+  rlScopeBadge: 'مؤشرات إحصائية للتعلم التعزيزي فقط — لا تقيس وعياً عاماً',
+
+  trainTitle: 'نظام التدريب المعزول للبقاء (100 فرد)',
+  trainSubtitle:
+    'تدريب مستقل لـ 100 فرد في 100 بيئة متطابقة القالب ومعزولة تماماً، مع الإحياء التدريبي المرتبط بعقوبة الموت.',
+  trainNoData: 'لا تتوفر بيانات تدريب معزول في هذه اللقطة (ابدأ من مسار start-training أو حمّل عالماً مرقّى من حزمة تدريب).',
+  trainTicksExec: 'خطوات التدريب المنفذة',
+  trainTotalAttempts: 'إجمالي المحاولات',
+  trainTotalDeaths: 'وفيات التدريب',
+  trainAvgSurvival: 'متوسط البقاء/محاولة',
+  trainLongestSurvival: 'أطول صمود فردي',
+  trainStageMatrixTitle: 'مجموع مراحل التعلم الأربعة (اكتشاف ← قرار ← وصول ← استهلاك)',
+  trainProgressionChartTitle: 'تطور البقاء والتعلم عبر خطوات التدريب',
+  trainTableTitle: 'سجل مقارنة الأفراد الـ 100 في التدريب',
+  trainSearchPlaceholder: 'ابحث برقم الفرد أو السبب...',
+  trainSortBy: 'ترتيب حسب:',
+  trainColAgent: 'الفرد',
+  trainColAttempts: 'المحاولات',
+  trainColDeaths: 'الوفيات',
+  trainColLongest: 'أطول بقاء',
+  trainColAvgSurv: 'متوسط البقاء',
+  trainColFoodStages: 'غذاء (ك/ق/و/أ)',
+  trainColWaterStages: 'ماء (ك/ق/و/ش)',
+  trainColSkillsMem: 'مهارات/ذاكرة',
+  trainColLearnScore: 'مستوى التعلم',
+  trainColLastCause: 'آخر سبب وفاة',
+  trainColStatus: 'الحالة',
+  trainAttemptHistoryTitle: 'سجل محاولات الفرد في البيئة المعزولة',
+
   searchAgentPlaceholder: 'ابحث برقم الفرد (مثال: 14)',
-  searchButton: 'انتقال',
-  selectAgentPrompt: 'انقر على أي فرد في العالم ثلاثي الأبعاد أو ابحث برقمه لمعاينة عقله وذاكرته.',
+  searchButton: 'معاينة',
+  selectAgentPrompt: 'اختر أي فرد من الجدول أو ابحث برقمه لمعاينة عقله، مهاراته، ذكرياته وسجله التدريبي.',
   agentNotFound: 'لم يُعثر على فرد بهذا المعرّف في اللقطة الحالية.',
   statusAlive: 'حي',
   statusDeceased: 'متوفى نهائياً',
@@ -341,6 +551,7 @@ const AR: Translations = {
   ageYears: 'سنة',
   tickUnit: 'خطوة',
   genShort: 'جيل',
+  coordsLabel: 'الإحداثيات',
   vitalsSection: 'المؤشرات الحيوية والحالة',
   health: 'الصحة',
   hunger: 'الجوع',
@@ -355,7 +566,7 @@ const AR: Translations = {
   deathTick: 'خطوة الوفاة',
   rebirthSection: 'سجل الإحياء والتعلّم من الوفاة',
   rebirthCountLabel: 'مرات الإحياء',
-  originalDeathLabel: 'الوفاة الأصلية',
+  originalDeathLabel: 'الوفاة السابقة',
   rebirthTickLabel: 'خطوة الإحياء',
   deathPenaltyLabel: 'تحديث عقوبة الموت العصبية',
   brainFingerprintLabel: 'بصمة الأوزان العصبية',
@@ -381,18 +592,20 @@ const AR: Translations = {
   popFilterDeceased: 'المتوفون',
   ageDistTitle: 'التوزيع العمري للأحياء',
   familyTreeTitle: 'شجرة الأنساب التفاعلية',
-  selectRootForTree: 'اختر فرداً من السجل أو العالم لعرض شجرة والديه وأحفاده.',
+  selectRootForTree: 'اختر فرداً من السجل لعرض شجرة والديه وأحفاده.',
   civLangTitle: 'اللغة الناشئة والتواصل',
   civEconTitle: 'الاقتصاد والتبادل',
   civSocietyTitle: 'المجتمع والحكم والمعايير',
   civKnowledgeTitle: 'المعرفة والتقنيات المكتشفة',
   civCrimeTitle: 'الجريمة والعدالة والاستقرار',
   notYetInvented: 'لم ينشأ بعد في هذا العالم',
-  engineScopeNoteTitle: 'نطاق تمثيل البيئة الفيزيائية في المحرك',
+  engineScopeNoteTitle: 'نطاق تمثيل المحرك الفعلي',
   engineScopeNoteBody:
-    'المحرك الحالي لا يخزن شبكة مبانٍ أو طرق معبدة أو مزارع مزروعة. تظهر في المشهد فقط الآثار والنقوش السطحية ومراكز التبادل الفعلية ومؤشر تقنية المأوى البدائي عند اكتشافها.',
+    'تعرض اللوحة القياسات الإحصائية المباشرة الصادرة عن المحرك (السكان، قمع الغذاء والماء، اللغة الأولية، الاقتصاد، التعلم التعزيزي، والتاريخ ثلاثي الطبقات) دون أي تمثيل ثلاثي أبعاد.',
   activeTokens: 'الرموز النشطة',
   stableProtowords: 'كلمات أولية مستقرة',
+  adoptersLabel: 'متبنّون',
+  extinctWordLabel: 'منقرضة',
   topBigrams: 'تتابعات ثنائية شائعة',
   dialects: 'تباين اللهجات الجهوية',
   semanticDrift: 'أحداث الانزياح الدلالي',
@@ -423,6 +636,10 @@ const AR: Translations = {
   insufficientWindow: 'نافذة رصد غير كافية بعد (< 90 يوماً أو < 20 فرداً)',
   repeatOffenders: 'مكررو المخالفات',
   lastCrimeLabel: 'آخر جريمة',
+  cooperationLabel: 'أحداث التعاون',
+  mutualAidLabel: 'المساعدة المتبادلة',
+  teachingLabel: 'أحداث التعليم',
+  cultivationLabel: 'الاستنبات والرعاية',
   historyFilterAll: 'كل الأنواع',
   historyFilterYearPlaceholder: 'تصفية بالسنة...',
   historyFilterAgentPlaceholder: 'رقم فرد مشارك...',
@@ -439,10 +656,10 @@ const AR: Translations = {
   layer2Subtitle: 'ما لاحظه شهود محليون (مع احتمال خطأ أو تشوّه) والنقوش الباقية',
   layer3Title: 'الطبقة 3: التفسيرات والأساطير عبر الأجيال',
   layer3Subtitle: 'كيف أعادت الأجيال اللاحقة تفسير الآثار والماضي',
-  replayEventBtn: 'إعادة عرض موقع الحدث',
-  clearReplayBtn: 'إنهاء معاينة الحدث',
-  replayingBanner: 'معاينة موقع الحدث التاريخي',
-  replayFrameHonesty: 'يعرض المرصد الموقع الدقيق والأفراد المشاركين من السجل الفعلي دون تلفيق إطارات وسيطة مفقودة.',
+  inspectLocationBtn: 'تثبيت إحداثيات الحدث',
+  clearReplayBtn: 'مسح التحديد',
+  replayingBanner: 'معاينة سجل الحدث التاريخي',
+  replayFrameHonesty: 'يعرض المرصد الإحداثيات الدقيقة والأفراد المشاركين من السجل الفعلي دون تلفيق إطارات مفقودة.',
   noEventsMatched: 'لا توجد أحداث تطابق معايير التصفية الحالية.',
   telemetryPopChart: 'منحنى السكان (الأحياء والوفيات والولادات)',
   telemetryResourceChart: 'الموارد البيئية والحيوانات عبر الزمن',
@@ -482,7 +699,7 @@ const AR: Translations = {
   impCloseBtn: 'إغلاق',
   diagButton: 'التشخيص',
   diagTitle: 'تشخيص النظام ومنع الأعطال',
-  diagRendererLabel: 'مُصيّر العرض',
+  diagModeLabel: 'وضع اللوحة',
   diagCycleLabel: 'الدورة السكانية',
   diagSchemaLabel: 'نسخة البيانات',
   diagErrorLogLabel: 'سجل الأخطاء التقنية بالمتصفح',
@@ -491,13 +708,10 @@ const AR: Translations = {
   diagCopyBtn: 'نسخ تقرير JSON',
   diagCopied: 'تم النسخ',
   diagDownloadBtn: 'تنزيل التقرير',
-  fallbackBannerTitle: 'وضع الخريطة التكتيكية ثنائية الأبعاد (WebGL غير متاح أو متوقف)',
-  fallbackBannerDesc: 'يعرض المرصد البيانات الحقيقية بأمان عبر رسم 2D دون تعطيل الصفحة. يمكنك النقر على الأفراد أو محاولة إعادة تشغيل 3D.',
-  fallbackRetryWebgl: 'إعادة محاولة 3D',
-  recoverySectionTitle: 'دورات الاستمرار التلقائي بعد الانقراض',
+  recoverySectionTitle: 'دورات التعافي بعد الانقراض',
   recoveryCurrentCycle: 'الدورة الحالية',
   recoveryCountLabel: 'مرات التعافي',
-  recoveryNoCycles: 'لم يحدث انقراض شامل أو دورة تعافٍ بعد في هذه التجربة.',
+  recoveryNoCycles: 'التعافي التلقائي معطل بعد الترقية أو لم تحدث دورة تعافٍ بعد.',
   recoveryFoundersLabel: 'المؤسسون الجدد',
   recoveryBirthsLabel: 'مواليد لاحقة',
   recoveryDurationLabel: 'مدة الصمود',
@@ -554,6 +768,7 @@ const AR: Translations = {
     murder: 'القتل',
     injury: 'إصابة بالغة',
     exposure: 'الطقس القاسي',
+    other: 'أسباب أخرى',
     test_injury: 'إصابة اختبارية',
   },
   seasons: {
@@ -653,14 +868,18 @@ const AR: Translations = {
 };
 
 const EN: Translations = {
-  appTitle: 'Civilization Observatory',
-  appSubtitle: 'From Beginning to Civilization — Interactive Simulation & Experimental Timelines',
+  appTitle: 'Civilization Statistics Observatory',
+  appSubtitle: 'From Beginning to Civilization — Isolated Training Analytics, Population Telemetry & Audit',
   sourceEmpty: 'Awaiting real snapshot',
   sourcePublished: 'Published World Snapshot',
   sourceUploaded: 'Imported Local Snapshot/Batch',
   sourceTestFixture: 'Isolated Test Fixture (Preview Only)',
   sourceLiveRunner: 'Live Simulation Engine',
   testFixtureWarning: 'Notice: Viewing an isolated test fixture, not a live persistent world.',
+  phaseTraining: 'Isolated Survival Training Phase (100 Agents)',
+  phaseCivilization: 'Full Civilization World Phase',
+  legacyAnalyticsNotice:
+    'Note: This legacy snapshot predates per-tick funnel counters; only real values derived directly from stored snapshot fields are shown.',
   uploadSnapshotBtn: 'Load JSON',
   multiImportBtn: 'Multi-File / Folder Import',
   loadTestFixtureBtn: 'Preview Isolated Test Fixture',
@@ -668,38 +887,13 @@ const EN: Translations = {
   newWorldBtn: 'New Live World',
   emptyHeadline: 'No Real World Snapshot Loaded Yet',
   emptyBody:
-    'This observatory strictly renders authentic engine outputs from From Beginning to Civilization without inventing buildings, history, or outcomes. Launch a live local world, import multi-file JSON sequences/folders, or preview the isolated test fixture.',
+    'This statistics observatory strictly renders authentic engine outputs from From Beginning to Civilization with zero synthetic data. Launch a live local world, import Training/Civilization JSON snapshots, or preview the isolated test fixture.',
   emptyDropHint: 'Drag & drop observatory_export.json or step files here',
   emptyStepsTitle: 'Authentic Simulation & Import Workflows',
-  emptyStep1: '1. Launch a live world via the local runner or run the manual GitHub Actions workflow.',
+  emptyStep1: '1. Run Isolated Training or Promote Population via manual GitHub Actions workflow.',
   emptyStep2: '2. Import single snapshots or unlimited step JSON folders with topological validation.',
-  emptyStep3: '3. Branch experimental Rebirth timelines to revive deceased agents and compare outcomes.',
+  emptyStep3: '3. Inspect survival causes, 6-stage food/water funnels, and 100-agent training tables.',
   uploadErrorTitle: 'Could Not Parse Snapshot File',
-  qualityLow: 'Low',
-  qualityMedium: 'Medium',
-  qualityHigh: 'High',
-  qualityUltra: 'Ultra',
-  fpsLabel: 'FPS',
-  softwareGlBanner: 'Software WebGL detected — frame pacing adjusted automatically for responsiveness.',
-  zenEnter: 'Cinema Mode',
-  zenExit: 'Show Controls',
-  resetCamera: 'World Overview',
-  followAgent: 'Follow Agent',
-  followingAgent: 'Following Agent',
-  stopFollow: 'Stop Follow',
-  enterFpv: 'First-Person View (FPV)',
-  exitFpv: 'Exit FPV',
-  fpvTitle: 'Bounded Individual Sensory View',
-  fpvSubtitle: 'Strictly local vision & hearing — zero global omniscience or speaker intent leakage',
-  fpvVisionRadius: 'Vision Radius',
-  fpvHearingRadius: 'Hearing Radius',
-  fpvVisibleAgents: 'Visible Agents',
-  fpvVisibleFauna: 'Visible Fauna',
-  fpvVisibleArtifacts: 'Visible Artifacts',
-  fpvLocalResources: 'Local Resource Readings',
-  fpvHeardSignals: 'Heard Vocal Tokens & Gestures',
-  fpvNoSignals: 'No vocal signals heard within local range.',
-  fpvBlindNotice: 'Speaker internal intent is intentionally hidden — the observer hears only raw token & gesture.',
   simClockLabel: 'Simulated Time',
   realClockLabel: 'Cumulative Real Runtime',
   clockRatioNote: '1 real minute = 1 simulated month (in realtime pacing mode)',
@@ -707,6 +901,7 @@ const EN: Translations = {
   worldIdLabel: 'World ID',
   timelineOriginal: 'Original Timeline',
   timelineExperimental: 'Experimental Rebirth Branch',
+  timelineIsolatedTraining: 'Isolated Training',
   timelineBranchTick: 'Branch Tick',
   livingLabel: 'Living',
   deceasedLabel: 'Deceased',
@@ -714,15 +909,135 @@ const EN: Translations = {
   seasonLabel: 'Season',
   weatherLabel: 'Weather',
   tempLabel: 'Temp',
-  tabInspector: 'Agent',
-  tabPopulation: 'Population & Tree',
-  tabCivilization: 'Systems',
-  tabHistory: 'History & Replay',
-  tabTelemetry: 'Telemetry',
-  tabComparison: 'Compare Timelines',
+
+  navOverview: 'Overview',
+  navPopulation: 'Population & Agents',
+  navSurvival: 'Survival',
+  navResources: 'Food & Water',
+  navCivilization: 'Civilization & Economy',
+  navLearning: 'Intelligence & RL',
+  navTraining: 'Training (100)',
+  navHistory: 'History & Compare',
+
+  totalEverLived: 'Total Ever Lived',
+  birthsTotal: 'Total Births',
+  maleCount: 'Living Males',
+  femaleCount: 'Living Females',
+  avgAgeYears: 'Avg Living Age',
+  youngestLiving: 'Youngest Living',
+  oldestLiving: 'Oldest Living',
+  birthRate1k: 'Birth Rate / 1,000',
+  deathRate1k: 'Death Rate / 1,000',
+  netGrowthRate1k: 'Net Growth / 1,000',
+  genBreakdownTitle: 'Generations Breakdown',
+  familyUnitsCount: 'Family Units',
+  avgFamilySize: 'Avg Family Size',
+  independentAdults: 'Independent Adults',
+  dependentsCount: 'Dependents (Infants/Children)',
+
+  survTitle: 'Survival Analytics & True Mortality Causes',
+  avgLifespan: 'Average Lifespan',
+  longestLifespan: 'Longest Lifespan',
+  shortestLifespan: 'Shortest Lifespan',
+  prematureDeaths: 'Premature Deaths',
+  prematureRate: 'Premature Death Rate',
+  naturalVsViolent: 'Natural vs Violent Deaths',
+  naturalDeaths: 'Natural / Environmental',
+  violentDeaths: 'Violent / Predation',
+  deathsByCauseTitle: 'Mortality Breakdown by True Cause',
+  survivalByGenTitle: 'Avg Survival per Generation (ticks)',
+  noDeathsRecorded: 'No deaths recorded yet in this snapshot.',
+
+  resTitle: 'Food & Water Analytics + 6-Stage Funnel',
+  availConsumableFood: 'Consumable Food Available',
+  foodConsumedTotal: 'Total Food Consumed',
+  foodConsRate: 'Food Consumption Rate/tick',
+  availWaterSources: 'Active Water Cells/Sources',
+  waterConsumedTotal: 'Total Water Consumed',
+  waterConsRate: 'Water Consumption Rate/tick',
+  agentsHungry: 'Agents Experiencing Hunger',
+  agentsThirsty: 'Agents Experiencing Thirst',
+  avgHungerDur: 'Avg Hunger Duration (ticks)',
+  avgThirstDur: 'Avg Thirst Duration (ticks)',
+  starvationDeaths: 'Starvation Deaths',
+  dehydrationDeaths: 'Dehydration Deaths',
+  nearbyFoodFailures: 'Nearby Food Reach Failures',
+  nearbyWaterFailures: 'Nearby Water Reach Failures',
+  foodFunnelTitle: '6-Stage Food Interaction Funnel',
+  waterFunnelTitle: '6-Stage Water Interaction Funnel',
+  regionalResourcesTitle: 'Regional Resources & Population Comparison (Quadrants)',
+  regionLabel: 'Quadrant',
+  funnelStages: {
+    absent: '1. Resource Absent',
+    present_undiscovered: '2. Present, Undiscovered',
+    discovered_no_decision: '3. Discovered, No Move Decision',
+    decision_move_failed: '4. Move Decision Failed',
+    reached_consume_failed: '5. Reached, Consume Failed',
+    consumed_success: '6. Consumed Successfully',
+  },
+
+  econProdConsTitle: 'Cumulative Production & Consumption',
+  foodCultivated: 'Food Cultivated',
+  woodGathered: 'Wood Gathered',
+  stoneGathered: 'Stone Gathered',
+  herbGathered: 'Herbs Gathered',
+  toolsCrafted: 'Tools Crafted',
+  storedInventoriesTitle: 'Total Living Agent Inventories',
+  scarceResourcesTitle: 'Currently Scarce Resources',
+  noScarceResources: 'No acute resource scarcity flagged.',
+  wealthDistTitle: 'Inventory Wealth Distribution (Living)',
+  giniIndex: 'Gini Coefficient',
+  medianInventory: 'Median Inventory',
+  maxInventory: 'Max Individual Inventory',
+  top10Share: 'Top 10% Share',
+
+  learnTitle: 'Experiential & Reinforcement Learning Telemetry',
+  expStored: 'Experiences Recorded',
+  totalBrainUpdates: 'Total Brain Updates',
+  skillsAcquired: 'Total Skills Acquired',
+  avgSkillsPerAgent: 'Avg Skills / Agent',
+  foodDiscoverReach: 'Food Discover / Reach Events',
+  waterDiscoverReach: 'Water Discover / Reach Events',
+  episodicTotal: 'Episodic Memories',
+  spatialTotal: 'Spatial Maps',
+  intergenTransfers: 'Intergenerational Transfers',
+  updatesStdDev: 'Update Variance (StdDev)',
+  rewardStdDev: 'Reward Variance (StdDev)',
+  repeatedErrors: 'Repeated Failed Actions',
+  postNegSwitches: 'Post-Negative Decision Switches',
+  rlScopeBadge: 'Statistical RL optimization metrics only — not general consciousness',
+
+  trainTitle: 'Isolated Survival Training System (100 Agents)',
+  trainSubtitle:
+    '100 independent individuals trained across 100 identically-templated isolated worlds with cause-linked death-penalty rebirth.',
+  trainNoData:
+    'No isolated training telemetry attached to this snapshot (run start-training or promote a population from trained_population.bundle).',
+  trainTicksExec: 'Training Ticks Executed',
+  trainTotalAttempts: 'Total Attempts',
+  trainTotalDeaths: 'Training Deaths',
+  trainAvgSurvival: 'Avg Survival / Attempt',
+  trainLongestSurvival: 'Longest Survival Span',
+  trainStageMatrixTitle: '4-Stage Learning Totals (Discover -> Decide -> Reach -> Consume)',
+  trainProgressionChartTitle: 'Survival & Learning Progression Across Training Ticks',
+  trainTableTitle: '100-Agent Training Comparison Table',
+  trainSearchPlaceholder: 'Filter by Agent ID or Cause...',
+  trainSortBy: 'Sort by:',
+  trainColAgent: 'Agent',
+  trainColAttempts: 'Attempts',
+  trainColDeaths: 'Deaths',
+  trainColLongest: 'Longest',
+  trainColAvgSurv: 'Avg Surv',
+  trainColFoodStages: 'Food (D/Dec/R/C)',
+  trainColWaterStages: 'Water (D/Dec/R/C)',
+  trainColSkillsMem: 'Skills/Mem',
+  trainColLearnScore: 'Learn Score',
+  trainColLastCause: 'Last Cause',
+  trainColStatus: 'Status',
+  trainAttemptHistoryTitle: 'Individual Attempt History in Isolated Env',
+
   searchAgentPlaceholder: 'Jump to Agent ID (e.g. 14)',
-  searchButton: 'Go',
-  selectAgentPrompt: 'Click any individual in the 3D world or search by ID to inspect brain state and memories.',
+  searchButton: 'Inspect',
+  selectAgentPrompt: 'Select an individual from the registry or search by ID to inspect brain state, skills, and memories.',
   agentNotFound: 'No individual with that ID exists in this snapshot.',
   statusAlive: 'Living',
   statusDeceased: 'Permanently Deceased',
@@ -731,6 +1046,7 @@ const EN: Translations = {
   ageYears: 'yrs',
   tickUnit: 'tick',
   genShort: 'Gen',
+  coordsLabel: 'Coordinates',
   vitalsSection: 'Vitals & Status',
   health: 'Health',
   hunger: 'Hunger',
@@ -771,18 +1087,20 @@ const EN: Translations = {
   popFilterDeceased: 'Deceased',
   ageDistTitle: 'Living Age Distribution',
   familyTreeTitle: 'Interactive Family Tree',
-  selectRootForTree: 'Select an individual from the registry or 3D scene to inspect ancestors and descendants.',
+  selectRootForTree: 'Select an individual from the registry to inspect ancestors and descendants.',
   civLangTitle: 'Emergent Language & Communication',
   civEconTitle: 'Economy & Exchange',
   civSocietyTitle: 'Society, Norms & Governance',
   civKnowledgeTitle: 'Knowledge & Discovered Tech',
   civCrimeTitle: 'Crime, Justice & Stability',
   notYetInvented: 'Not yet invented in this world',
-  engineScopeNoteTitle: 'Engine Physical Representation Scope',
+  engineScopeNoteTitle: 'Observatory Analytical Scope',
   engineScopeNoteBody:
-    'The current engine does not store constructed buildings, paved roads, or tilled farm grids. Only authentic surface artifacts, active exchange hubs, and the simple_shelter tech milestone (when discovered) are represented.',
+    'Displays authentic per-tick statistics directly from the Python simulation engine (population, 6-stage resource funnels, emergent language, economy, RL metrics, and 3-layer history) without synthetic UI data.',
   activeTokens: 'Active Tokens',
   stableProtowords: 'Stable Proto-Words',
+  adoptersLabel: 'adopters',
+  extinctWordLabel: 'extinct',
   topBigrams: 'Top Bigram Sequences',
   dialects: 'Regional Dialects',
   semanticDrift: 'Semantic Drift Events',
@@ -813,6 +1131,10 @@ const EN: Translations = {
   insufficientWindow: 'Insufficient observation window (< 90 sim days or < 20 living)',
   repeatOffenders: 'Repeat Offenders',
   lastCrimeLabel: 'Last Crime',
+  cooperationLabel: 'Cooperation Events',
+  mutualAidLabel: 'Mutual Aid Events',
+  teachingLabel: 'Teaching Events',
+  cultivationLabel: 'Cultivation Events',
   historyFilterAll: 'All Event Types',
   historyFilterYearPlaceholder: 'Filter by Year...',
   historyFilterAgentPlaceholder: 'Participant ID...',
@@ -829,10 +1151,10 @@ const EN: Translations = {
   layer2Subtitle: 'Local witness perceptions (may be distorted) and physical carvings',
   layer3Title: 'Layer 3: Generational Interpretations',
   layer3Subtitle: 'How descendant generations reinterpreted surviving artifacts',
-  replayEventBtn: 'Replay Event Location',
-  clearReplayBtn: 'Exit Replay',
-  replayingBanner: 'Replaying Historical Event Location',
-  replayFrameHonesty: 'Flies camera to exact recorded coordinates and highlights participating agents without fabricating missing ticks.',
+  inspectLocationBtn: 'Pin Event Coordinates',
+  clearReplayBtn: 'Clear Selection',
+  replayingBanner: 'Inspecting Historical Event Record',
+  replayFrameHonesty: 'Displays exact recorded coordinates and participating agent IDs without fabricating missing ticks.',
   noEventsMatched: 'No recorded events match these filters.',
   telemetryPopChart: 'Population Trajectory (Living, Deceased, Births)',
   telemetryResourceChart: 'Ecosystem Biomass & Fauna Over Time',
@@ -872,7 +1194,7 @@ const EN: Translations = {
   impCloseBtn: 'Close',
   diagButton: 'Diagnostics',
   diagTitle: 'System Diagnostics & Crash Guard',
-  diagRendererLabel: 'Viewport Renderer',
+  diagModeLabel: 'Observatory Mode',
   diagCycleLabel: 'Population Cycle',
   diagSchemaLabel: 'Snapshot Schema',
   diagErrorLogLabel: 'Captured Browser Errors',
@@ -881,13 +1203,10 @@ const EN: Translations = {
   diagCopyBtn: 'Copy JSON Report',
   diagCopied: 'Copied',
   diagDownloadBtn: 'Download Report',
-  fallbackBannerTitle: '2D Tactical Map Fallback (WebGL Unavailable or Interrupted)',
-  fallbackBannerDesc: 'Rendering live world data safely via HTML5 2D Canvas without crashing. Click any agent or retry 3D.',
-  fallbackRetryWebgl: 'Retry 3D',
-  recoverySectionTitle: 'Automatic Post-Extinction Recovery Cycles',
+  recoverySectionTitle: 'Post-Extinction Recovery Cycles',
   recoveryCurrentCycle: 'Active Cycle',
   recoveryCountLabel: 'Recovery Cycles',
-  recoveryNoCycles: 'No total extinction recovery cycles triggered yet.',
+  recoveryNoCycles: 'Auto-recovery disabled after promotion or no extinction cycles triggered yet.',
   recoveryFoundersLabel: 'New Founders',
   recoveryBirthsLabel: 'Subsequent Births',
   recoveryDurationLabel: 'Survival Span',
@@ -944,6 +1263,7 @@ const EN: Translations = {
     murder: 'Homicide',
     injury: 'Severe Injury',
     exposure: 'Exposure',
+    other: 'Other',
     test_injury: 'Test Injury',
   },
   seasons: {

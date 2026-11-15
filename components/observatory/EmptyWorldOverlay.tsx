@@ -39,7 +39,7 @@ export default function EmptyWorldOverlay({
   };
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 flex items-center justify-center p-4">
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-2xl items-center justify-center px-4 py-10">
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -47,7 +47,7 @@ export default function EmptyWorldOverlay({
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        className={`pointer-events-auto w-full max-w-xl rounded-md border bg-[#121821]/95 p-6 text-[#E6EDF3] shadow-2xl transition ${
+        className={`w-full rounded-md border bg-[#121821] p-6 text-[#E6EDF3] shadow-2xl transition ${
           dragging ? 'border-[#D99B26]' : 'border-white/15'
         }`}
       >
@@ -64,7 +64,7 @@ export default function EmptyWorldOverlay({
           </div>
         )}
 
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {liveApiAvailable && (
             <button
               type="button"
@@ -106,9 +106,9 @@ export default function EmptyWorldOverlay({
           </button>
         </div>
 
-        <p className="mt-2 text-center text-[11px] text-[#9FB0C3]">{t.emptyDropHint}</p>
+        <p className="mt-2.5 text-center text-[11px] text-[#9FB0C3]">{t.emptyDropHint}</p>
 
-        <div className="mt-5 rounded border border-white/10 bg-[#18212C] p-3 text-xs">
+        <div className="mt-5 rounded border border-white/10 bg-[#18212C] p-3.5 text-xs">
           <div className="mb-1.5 flex items-center gap-1.5 font-semibold text-[#57b8d8]">
             <Terminal className="h-3.5 w-3.5" />
             <span>{t.emptyStepsTitle}</span>

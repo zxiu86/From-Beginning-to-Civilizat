@@ -117,6 +117,8 @@ class Agent:
     traits: PersonalityTraits = field(default_factory=lambda: PersonalityTraits(0.5, 0.5, 0.5, 0.3, 0.5))
     memory: MemoryEngine = field(default_factory=MemoryEngine)
     brain: Optional[AgentBrain] = field(default=None, repr=False)
+    training_stats: Optional[dict] = None
+    last_step_telemetry: Dict[str, object] = field(default_factory=dict, repr=False)
 
     @property
     def age_years(self) -> float:
@@ -175,6 +177,7 @@ class Agent:
             "death_penalty_record": self.death_penalty_record,
             "traits": asdict(self.traits),
             "memory": self.memory.to_dict(),
+            "training_stats": self.training_stats,
         }
 
     @classmethod
@@ -223,6 +226,7 @@ class Agent:
             traits=PersonalityTraits(**d["traits"]),
             memory=MemoryEngine.from_dict(d["memory"]),
             brain=brain,
+            training_stats=d.get("training_stats"),
         )
         return ag
 
@@ -637,6 +641,22 @@ class AgentEngine:
         agent.last_partner_id = None
         agent.last_move_dx = 0.0
         agent.last_move_dy = 0.0
+        step_telemetry: Dict[str, object] = {
+            "moved_m": 0.0,
+            "food_harvested": 0.0,
+            "food_consumed": 0.0,
+            "water_consumed": 0.0,
+            "food_produced": 0.0,
+            "wood_gathered": 0.0,
+            "stone_gathered": 0.0,
+            "herb_gathered": 0.0,
+            "tool_crafted": False,
+            "cooperation_event": False,
+            "mutual_aid_event": False,
+            "teaching_event": False,
+            "knowledge_transfer_events": 0,
+            "cultivation_event": False,
+        }
         reward = 0.0
 
         # Base daily metabolism
@@ -645,6 +665,7 @@ class AgentEngine:
         agent.thirst = min(1.0, agent.thirst + 0.038)
         if world.weather.rainfall_mm >= 1.5:
             agent.thirst = max(0.0, agent.thirst - 0.08)
+            step_telemetry["water_consumed"] = float(step_telemetry["water_consumed"]) + 0.08
         agent.energy = max(0.0, agent.energy - 0.025)
 
         # Infant and dependent-child provisioning from nearby mother or father when parent is nourished
@@ -664,6 +685,8 @@ class AgentEngine:
                             agent.hunger = max(0.0, agent.hunger - 0.25)
                             agent.memory.update_social(pid, 0.04, 0.06)
                             par.memory.update_social(agent.agent_id, 0.04, 0.06)
+                            step_telemetry["mutual_aid_event"] = True
+                            step_telemetry["food_consumed"] = float(step_telemetry["food_consumed"]) + gift
                             break
 
         cidx = world.cell_index_at(agent.x, agent.y)
@@ -728,6 +751,7 @@ class AgentEngine:
                 step_dist=move_speed,
                 nearby_obstacles=nearby_coords,
             )
+            step_telemetry["moved_m"] = moved_m
             if moved_m > 0.2:
                 agent.last_move_dx = nx - agent.x
                 agent.last_move_dy = ny - agent.y
@@ -763,6 +787,7 @@ class AgentEngine:
                                 best_val = world.food_flora[idx_n]
                                 best_idx = idx_n
             gathered = world.harvest_food(best_idx, 1.35 * skill_bonus * tool_bonus)
+            step_telemetry["food_harvested"] = gathered
             agent.energy = max(0.0, agent.energy - 0.045)
             agent.memory.practice_skill("foraging", 0.04)
             if gathered > 0.05:
@@ -772,6 +797,7 @@ class AgentEngine:
                     consume = min(agent.inventory["food"], 0.9)
                     agent.inventory["food"] -= consume
                     agent.hunger = max(0.0, agent.hunger - consume * 0.75)
+                    step_telemetry["food_consumed"] = float(step_telemetry["food_consumed"]) + consume
                 reward += 0.45 * min(1.5, gathered)
             else:
                 reward -= 0.12
@@ -781,6 +807,7 @@ class AgentEngine:
             if w_idx is not None:
                 taken = world.consume_water(w_idx, 0.8)
                 if taken > 0.05:
+                    step_telemetry["water_consumed"] = float(step_telemetry["water_consumed"]) + taken
                     agent.thirst = max(0.0, agent.thirst - 0.75)
                     wc, wr = w_idx % world.cols, w_idx // world.cols
                     if world.water[w_idx] > 0.5:
@@ -806,6 +833,7 @@ class AgentEngine:
             taken = world.harvest_wood(cidx, 0.8)
             agent.energy = max(0.0, agent.energy - 0.05)
             if taken > 0.05:
+                step_telemetry["wood_gathered"] = taken
                 agent.inventory["wood"] = min(10.0, agent.inventory.get("wood", 0.0) + taken)
                 agent.carried_item = "wood"
                 reward += 0.18
@@ -816,6 +844,7 @@ class AgentEngine:
             taken = world.harvest_stone(cidx, 0.7)
             agent.energy = max(0.0, agent.energy - 0.06)
             if taken > 0.05:
+                step_telemetry["stone_gathered"] = taken
                 agent.inventory["stone"] = min(10.0, agent.inventory.get("stone", 0.0) + taken)
                 agent.carried_item = "stone"
                 reward += 0.18
@@ -826,6 +855,7 @@ class AgentEngine:
             taken = world.harvest_herb(cidx, 0.5)
             agent.energy = max(0.0, agent.energy - 0.04)
             if taken > 0.05:
+                step_telemetry["herb_gathered"] = taken
                 agent.inventory["herb"] = min(5.0, agent.inventory.get("herb", 0.0) + taken)
                 agent.carried_item = "herb"
                 reward += 0.15
@@ -837,6 +867,7 @@ class AgentEngine:
                 amt = min(agent.inventory["food"], 0.7)
                 agent.inventory["food"] -= amt
                 agent.hunger = max(0.0, agent.hunger - amt * 0.75)
+                step_telemetry["food_consumed"] = float(step_telemetry["food_consumed"]) + amt
                 reward += 0.40
             else:
                 reward -= 0.12
@@ -848,6 +879,7 @@ class AgentEngine:
                 agent.inventory["wood"] -= 0.4
                 agent.inventory["tool"] = min(4.0, agent.inventory.get("tool", 0.0) + 1.0)
                 agent.memory.practice_skill("tool_shaping", 0.12)
+                step_telemetry["tool_crafted"] = True
                 if "stone_toolmaking" not in self.discovered_techs:
                     self.discovered_techs["stone_toolmaking"] = tick
                     history.record_truth(
@@ -869,6 +901,8 @@ class AgentEngine:
             elif world.water[cidx] < 50.0 and world.fertility[cidx] >= 0.30 and world.moisture[cidx] >= 0.22:
                 grown = world.tend_cultivation(cidx, agent.memory.skills.get("cultivation", 0.0))
                 if grown > 0.01:
+                    step_telemetry["food_produced"] = grown
+                    step_telemetry["cultivation_event"] = True
                     agent.memory.practice_skill("cultivation", 0.08)
                     if "early_cultivation" not in self.discovered_techs and agent.memory.skills.get("cultivation", 0.0) >= 0.35:
                         self.discovered_techs["early_cultivation"] = tick
@@ -934,6 +968,8 @@ class AgentEngine:
                             # Imperfect transfer: child/learner absorbs partial skill with random drift
                             transfer = (prof - listener.memory.skills[sk]) * rng.uniform(0.08, 0.22)
                             listener.memory.practice_skill(sk, transfer)
+                            step_telemetry["teaching_event"] = True
+                            step_telemetry["knowledge_transfer_events"] = int(step_telemetry["knowledge_transfer_events"]) + 1
 
                     align_evs = comm.observe_shared_alignment(
                         tick=tick,
@@ -946,6 +982,9 @@ class AgentEngine:
                         listener_confidence=l_map[inferred_ctx],
                         is_cross_generation=(listener.generation != agent.generation),
                     )
+                    if align_evs:
+                        step_telemetry["cooperation_event"] = True
+                        step_telemetry["knowledge_transfer_events"] = int(step_telemetry["knowledge_transfer_events"]) + 1
                     for ev in align_evs:
                         history.record_truth(
                             tick, sim_date, ev["event_type"], ev["agent_ids"], ev["x"], ev["y"], ev["description"]
@@ -1020,6 +1059,8 @@ class AgentEngine:
                             agent.inventory["stone"] = min(10.0, agent.inventory.get("stone", 0.0) + 0.4)
                             used_token = True
                         barter_evs = society.record_barter(tick, agent.agent_id, other.agent_id, agent.x, agent.y, used_token=used_token)
+                        step_telemetry["cooperation_event"] = True
+                        step_telemetry["mutual_aid_event"] = True
                         for ev in barter_evs:
                             history.record_truth(
                                 tick, sim_date, ev["event_type"], ev["agent_ids"], ev["x"], ev["y"], ev["description"]
@@ -1173,6 +1214,7 @@ class AgentEngine:
                 tick, agent.agent_id, agent.x, agent.y, living_agents=self.all_agents
             )
             if disp_ev is not None:
+                step_telemetry["cooperation_event"] = True
                 agent.memory.practice_skill("mediation", 0.12)
                 history.record_truth(
                     tick, sim_date, disp_ev["event_type"], disp_ev["agent_ids"], disp_ev["x"], disp_ev["y"], disp_ev["description"]
@@ -1251,9 +1293,13 @@ class AgentEngine:
             reward -= 0.75
 
         # Weather cold/heat stress without shelter/energy
+        weather_stress = False
         if world.weather.temperature_c < 2.0 or world.weather.temperature_c > 36.0:
             shelter_mitigation = min(0.7, agent.memory.skills.get("shelter_building", 0.0))
             agent.energy = max(0.0, agent.energy - 0.025 * (1.0 - shelter_mitigation))
+            weather_stress = True
+            if agent.energy <= 0.02 and shelter_mitigation < 0.35:
+                agent.health -= 0.02
 
         # Environmental disease exposure
         if agent.disease_load <= 0.0 and rng.random() < world.weather.disease_pressure * (1.2 - 0.5 * agent.health):
@@ -1264,12 +1310,14 @@ class AgentEngine:
                 agent.disease_load = max(0.0, agent.disease_load - 0.1)
 
         # Predator hazard in immediate vicinity + personal hazard spatial memory
+        predator_hit = False
         if perc.local_predator_dist < 28.0 and rng.random() < 0.08:
             tool_def = 0.45 if agent.inventory.get("tool", 0.0) >= 1.0 else 1.0
             agent.health -= 0.22 * tool_def
             agent.injury = min(1.0, agent.injury + 0.20 * tool_def)
             agent.memory.record_episode(tick, "danger_predator", agent.x, agent.y, None, -0.8, "predator_attack")
             agent.memory.remember_hazard(tick, cidx, agent.x, agent.y, severity=1.5)
+            predator_hit = True
             reward -= 0.45
 
         # Natural recovery when well-fed and hydrated
@@ -1278,10 +1326,24 @@ class AgentEngine:
 
         # Record private experiential outcome of this action
         agent.memory.record_action_outcome(act, reward)
+        agent.last_step_telemetry = step_telemetry
 
-        # Check fatal biological failure or old age
+        # Check fatal biological failure or old age with distinct causal attribution
         if agent.health <= 0.0:
-            cause = "starvation" if agent.hunger >= 0.9 else ("dehydration" if agent.thirst >= 0.9 else "illness_or_injury")
+            if agent.hunger >= 0.9:
+                cause = "starvation"
+            elif agent.thirst >= 0.9:
+                cause = "dehydration"
+            elif predator_hit:
+                cause = "predator"
+            elif weather_stress and agent.energy <= 0.05:
+                cause = "exposure"
+            elif agent.disease_load >= 0.20 and agent.injury < 0.20:
+                cause = "disease"
+            elif agent.injury >= 0.20:
+                cause = "injury"
+            else:
+                cause = "illness_or_injury"
             self.kill_agent(agent, tick, sim_date, cause, history)
             return reward - 2.0
         if agent.age_ticks >= agent.max_lifespan_ticks:

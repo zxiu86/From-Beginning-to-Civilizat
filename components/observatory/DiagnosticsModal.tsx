@@ -9,17 +9,13 @@ import {
   safeFixed,
 } from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
-import type {ObservatorySnapshot} from '@/lib/observatory/types';
+import type {ObservatorySnapshot, SnapshotSourceMode} from '@/lib/observatory/types';
 
 interface DiagnosticsModalProps {
   t: Translations;
   open: boolean;
   snapshot: ObservatorySnapshot | null;
-  webglStatus: {
-    mode: 'webgl' | 'fallback_2d';
-    reason: string | null;
-    softwareGl: boolean;
-  };
+  sourceMode: SnapshotSourceMode;
   onClose: () => void;
 }
 
@@ -27,7 +23,7 @@ export default function DiagnosticsModal({
   t,
   open,
   snapshot,
-  webglStatus,
+  sourceMode,
   onClose,
 }: DiagnosticsModalProps) {
   const [copied, setCopied] = useState(false);
@@ -40,8 +36,8 @@ export default function DiagnosticsModal({
 
   const report = useMemo(() => {
     void clearTick;
-    return open ? buildDiagnosticReport(snapshot, webglStatus) : {};
-  }, [open, snapshot, webglStatus, clearTick]);
+    return open ? buildDiagnosticReport(snapshot, sourceMode) : {};
+  }, [open, snapshot, sourceMode, clearTick]);
 
   if (!open) return null;
 
@@ -87,22 +83,14 @@ export default function DiagnosticsModal({
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4">
-          {/* Runtime & Renderer Status */}
+          {/* Runtime & Schema Status */}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
-              <div className="text-[10px] text-[#9FB0C3]">{t.diagRendererLabel}</div>
+              <div className="text-[10px] text-[#9FB0C3]">{t.diagModeLabel}</div>
               <div className="mt-0.5 font-mono font-semibold text-[#57b8d8]">
-                {webglStatus.mode === 'webgl'
-                  ? webglStatus.softwareGl
-                    ? 'WebGL (Software)'
-                    : 'WebGL 3D'
-                  : '2D Tactical Fallback'}
+                {snapshot?.simulation_phase === 'training' ? t.phaseTraining : t.phaseCivilization}
               </div>
-              {webglStatus.reason && (
-                <div className="mt-1 truncate text-[10px] text-[#F2BE49]" title={webglStatus.reason}>
-                  {webglStatus.reason}
-                </div>
-              )}
+              <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">source: {sourceMode}</div>
             </div>
 
             <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
@@ -119,6 +107,11 @@ export default function DiagnosticsModal({
               <div className="mt-0.5 font-mono font-semibold text-[#E6EDF3]">
                 {snapshot ? `${snapshot.export_schema_version} · T${snapshot.clock.tick}` : 'No snapshot'}
               </div>
+              {snapshot && (
+                <div className="mt-0.5 font-mono text-[10px] text-[#9FB0C3]">
+                  engineAnalytics={String(snapshot.analytics.available_from_engine)} · training={String(Boolean(snapshot.training_analytics))}
+                </div>
+              )}
             </div>
           </div>
 

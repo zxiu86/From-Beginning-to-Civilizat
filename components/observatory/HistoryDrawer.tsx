@@ -7,10 +7,11 @@ import {
   Layers,
   MapPin,
   Milestone,
-  Play,
+  Pin,
   Sparkles,
   X,
 } from 'lucide-react';
+import {formatCoords, safeDisplayText} from '@/lib/observatory/formatters';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {
   ObservatorySnapshot,
@@ -89,7 +90,9 @@ export default function HistoryDrawer({
   const witnesses = useMemo(() => {
     const arr = [...snapshot.history_layers.layer_2_witness_accounts_tail];
     arr.sort((a, b) =>
-      sortOrder === 'newest' ? b.tick - a.tick || b.account_id - a.account_id : a.tick - b.tick || a.account_id - b.account_id,
+      sortOrder === 'newest'
+        ? b.tick - a.tick || b.account_id - a.account_id
+        : a.tick - b.tick || a.account_id - b.account_id,
     );
     return arr.slice(0, 80);
   }, [snapshot.history_layers.layer_2_witness_accounts_tail, sortOrder]);
@@ -110,12 +113,12 @@ export default function HistoryDrawer({
 
   return (
     <div className="space-y-4 text-xs text-[#E6EDF3]">
-      {/* Active Replay Banner */}
+      {/* Pinned Event Inspection Banner */}
       {replayTarget && (
         <div className="rounded border border-red-400/50 bg-red-500/15 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-red-200">
-              {t.replayingBanner}: {replayTarget.sim_date}
+              {t.replayingBanner}: {replayTarget.sim_date} · {formatCoords(replayTarget.x, replayTarget.y)}
             </span>
             <button
               type="button"
@@ -131,7 +134,7 @@ export default function HistoryDrawer({
         </div>
       )}
 
-      {/* Detailed Event Modal Card */}
+      {/* Detailed Event Card */}
       {selectedEventDetail && (
         <div className="rounded border border-[#D99B26]/50 bg-[#18212C] p-3">
           <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
@@ -150,9 +153,7 @@ export default function HistoryDrawer({
                 #{selectedEventDetail.event_id} · {selectedEventDetail.sim_date} · {t.tickUnit}{' '}
                 {selectedEventDetail.tick}
               </span>
-              <span>
-                ({Math.round(selectedEventDetail.x)}, {Math.round(selectedEventDetail.y)})
-              </span>
+              <span>{formatCoords(selectedEventDetail.x, selectedEventDetail.y)}</span>
             </div>
             <div className="font-semibold text-[#E6EDF3]">{selectedEventDetail.event_type}</div>
             <p className="leading-relaxed text-[#E6EDF3]/90">{selectedEventDetail.description}</p>
@@ -160,7 +161,7 @@ export default function HistoryDrawer({
               <div className="rounded bg-[#121821] p-2 font-mono text-[10px] text-[#9FB0C3]">
                 {Object.entries(selectedEventDetail.metadata).map(([k, v]) => (
                   <div key={k} className="truncate">
-                    {k}: {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                    {k}: {safeDisplayText(v)}
                   </div>
                 ))}
               </div>
@@ -180,7 +181,7 @@ export default function HistoryDrawer({
         {achievedMilestones.length === 0 ? (
           <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
         ) : (
-          <div className="grid max-h-36 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
+          <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
             {achievedMilestones.map(([k, tick]) => (
               <div
                 key={k}
@@ -302,7 +303,7 @@ export default function HistoryDrawer({
           {filteredTruth.length === 0 ? (
             <div className="text-[11px] text-[#9FB0C3]">{t.noEventsMatched}</div>
           ) : (
-            <div className="max-h-56 space-y-1.5 overflow-y-auto">
+            <div className="max-h-64 space-y-1.5 overflow-y-auto">
               {filteredTruth.map((ev, evIdx) => {
                 const isRebirth = ev.event_type === 'experimental_rebirth';
                 return (
@@ -337,8 +338,8 @@ export default function HistoryDrawer({
                         }}
                         className="flex items-center gap-1 rounded border border-[#D99B26]/40 bg-[#D99B26]/15 px-1.5 py-0.5 text-[10px] text-[#F2BE49] hover:bg-[#D99B26]/25"
                       >
-                        <Play className="h-2.5 w-2.5" />
-                        <span>{t.replayEventBtn}</span>
+                        <Pin className="h-2.5 w-2.5" />
+                        <span>{t.inspectLocationBtn}</span>
                       </button>
                     </div>
                     <p className="mt-1 text-[#E6EDF3]">{ev.description}</p>

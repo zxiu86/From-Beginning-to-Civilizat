@@ -2,7 +2,7 @@
 
 import React, {useMemo, useState} from 'react';
 import {GitBranch, RefreshCw, Search, Skull, UserCheck} from 'lucide-react';
-import {safeFixed} from '@/lib/observatory/diagnostics';
+import {safeFixed} from '@/lib/observatory/formatters';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {
   AnyAgentRecord,
@@ -16,7 +16,6 @@ interface PopulationDrawerProps {
   selectedAgentId: number | null;
   agentLookup: Map<number, AnyAgentRecord>;
   onSelectAgent: (agentId: number) => void;
-  onFlyToAgent: (agentId: number) => void;
 }
 
 export default function PopulationDrawer({
@@ -25,10 +24,11 @@ export default function PopulationDrawer({
   selectedAgentId,
   agentLookup,
   onSelectAgent,
-  onFlyToAgent,
 }: PopulationDrawerProps) {
   const [filter, setFilter] = useState<'all' | 'living' | 'deceased'>('living');
   const [query, setQuery] = useState('');
+
+  const pop = snapshot.analytics.population;
 
   const genealogyMap = useMemo(() => {
     const m = new Map<number, GenealogyNodeItem>();
@@ -45,10 +45,8 @@ export default function PopulationDrawer({
           : [...snapshot.living_agents_full, ...snapshot.deceased_agents_archive];
 
     const q = query.trim();
-    const list = q
-      ? all.filter((a) => String(a.agent_id).includes(q))
-      : all;
-    return list.slice(0, 120);
+    const list = q ? all.filter((a) => String(a.agent_id).includes(q)) : all;
+    return list.slice(0, 150);
   }, [filter, query, snapshot.living_agents_full, snapshot.deceased_agents_archive]);
 
   const ageTotal = Math.max(
@@ -83,25 +81,111 @@ export default function PopulationDrawer({
 
   return (
     <div className="space-y-4 text-xs text-[#E6EDF3]">
-      {/* Age Distribution */}
-      <div className="rounded border border-white/10 bg-[#18212C] p-3">
-        <h3 className="mb-2 font-semibold">{t.ageDistTitle}</h3>
-        <div className="grid grid-cols-4 gap-2">
-          {(['infant', 'child', 'adult', 'elder'] as const).map((stage) => {
-            const count = snapshot.demographics.age_distribution[stage] ?? 0;
-            const pct = Math.round((count / ageTotal) * 100);
-            return (
-              <div key={stage} className="rounded bg-[#121821] p-2 text-center">
-                <div className="text-[10px] text-[#9FB0C3]">{t.lifeStages[stage] ?? stage}</div>
-                <div className="font-mono text-sm font-bold tabular-nums">{count}</div>
-                <div className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">{pct}%</div>
-              </div>
-            );
-          })}
+      {/* Demographic KPIs */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.totalEverLived}</div>
+          <div className="font-mono text-base font-bold tabular-nums">{pop.total_ever_lived}</div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">
+            {t.maleCount} / {t.femaleCount}
+          </div>
+          <div className="font-mono text-base font-bold tabular-nums">
+            <span className="text-[#57b8d8]">{pop.male_count}</span> /{' '}
+            <span className="text-[#F2BE49]">{pop.female_count}</span>
+          </div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.avgAgeYears}</div>
+          <div className="font-mono text-base font-bold tabular-nums">
+            {safeFixed(pop.avg_age_years, 1)} {t.ageYears}
+          </div>
+          <div className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+            {pop.youngest_living_age_years !== null ? safeFixed(pop.youngest_living_age_years, 1) : '—'} –{' '}
+            {pop.oldest_living_age_years !== null ? safeFixed(pop.oldest_living_age_years, 1) : '—'}
+          </div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.netGrowthRate1k}</div>
+          <div
+            className={`font-mono text-base font-bold tabular-nums ${
+              pop.net_growth_rate_per_1000 >= 0 ? 'text-emerald-300' : 'text-red-300'
+            }`}
+          >
+            {pop.net_growth_rate_per_1000 >= 0 ? '+' : ''}
+            {safeFixed(pop.net_growth_rate_per_1000, 1)}
+          </div>
+          <div className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+            B:{safeFixed(pop.birth_rate_per_1000, 1)} · D:{safeFixed(pop.death_rate_per_1000, 1)}
+          </div>
         </div>
       </div>
 
-      {/* Automatic Population Recovery Cycles */}
+      {/* Household & Generation Summary */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.birthsTotal}</div>
+          <div className="font-mono text-sm font-bold tabular-nums text-emerald-300">
+            {pop.births_total}
+          </div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.familyUnitsCount}</div>
+          <div className="font-mono text-sm font-bold tabular-nums">
+            {pop.family_units_count}{' '}
+            <span className="text-[10px] text-[#9FB0C3]">
+              (avg {safeFixed(pop.avg_family_size, 1)})
+            </span>
+          </div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.independentAdults}</div>
+          <div className="font-mono text-sm font-bold tabular-nums">{pop.independent_adults_count}</div>
+        </div>
+        <div className="rounded border border-white/10 bg-[#18212C] p-2.5">
+          <div className="text-[10px] text-[#9FB0C3]">{t.dependentsCount}</div>
+          <div className="font-mono text-sm font-bold tabular-nums">{pop.dependents_count}</div>
+        </div>
+      </div>
+
+      {/* Age Distribution + Generation Breakdown */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="rounded border border-white/10 bg-[#18212C] p-3">
+          <h3 className="mb-2 font-semibold">{t.ageDistTitle}</h3>
+          <div className="grid grid-cols-4 gap-2">
+            {(['infant', 'child', 'adult', 'elder'] as const).map((stage) => {
+              const count = snapshot.demographics.age_distribution[stage] ?? 0;
+              const pct = Math.round((count / ageTotal) * 100);
+              return (
+                <div key={stage} className="rounded bg-[#121821] p-2 text-center">
+                  <div className="text-[10px] text-[#9FB0C3]">{t.lifeStages[stage] ?? stage}</div>
+                  <div className="font-mono text-sm font-bold tabular-nums">{count}</div>
+                  <div className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">{pct}%</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded border border-white/10 bg-[#18212C] p-3">
+          <h3 className="mb-2 font-semibold">{t.genBreakdownTitle}</h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(pop.generations_breakdown)
+              .sort((a, b) => Number(a[0]) - Number(b[0]))
+              .map(([gen, cnt]) => (
+                <div key={gen} className="rounded bg-[#121821] px-3 py-2 text-center">
+                  <div className="text-[10px] text-[#9FB0C3]">
+                    {t.genShort} {gen}
+                  </div>
+                  <div className="font-mono text-sm font-bold tabular-nums text-[#F2BE49]">{cnt}</div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recovery Cycles */}
       {snapshot.recovery_state && (
         <div className="rounded border border-white/10 bg-[#18212C] p-3">
           <div className="mb-2 flex items-center justify-between">
@@ -160,11 +244,6 @@ export default function PopulationDrawer({
                       </strong>
                     </span>
                   </div>
-                  {cyc.pre_recovery_archive && (
-                    <div className="truncate font-mono text-[10px] text-[#9FB0C3]/80">
-                      {t.recoveryArchiveLabel}: {cyc.pre_recovery_archive}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -182,29 +261,6 @@ export default function PopulationDrawer({
           <div className="text-[11px] text-[#9FB0C3]">{t.selectRootForTree}</div>
         ) : (
           <div className="space-y-2.5 text-center">
-            {/* Grandparents */}
-            {(() => {
-              const pA = treeFocus.parent_a_id !== null ? genealogyMap.get(treeFocus.parent_a_id) : null;
-              const pB = treeFocus.parent_b_id !== null ? genealogyMap.get(treeFocus.parent_b_id) : null;
-              const gps = Array.from(
-                new Set(
-                  [
-                    pA?.parent_a_id ?? null,
-                    pA?.parent_b_id ?? null,
-                    pB?.parent_a_id ?? null,
-                    pB?.parent_b_id ?? null,
-                  ].filter((x): x is number => x !== null),
-                ),
-              );
-              if (gps.length === 0) return null;
-              return (
-                <div className="flex flex-wrap justify-center gap-1.5">
-                  {gps.map((gid, idx) => renderNodePill(gid, 'GP ', `gp-${idx}`))}
-                </div>
-              );
-            })()}
-
-            {/* Parents */}
             <div className="flex flex-wrap justify-center gap-2">
               {treeFocus.parent_a_id === null && treeFocus.parent_b_id === null ? (
                 <span className="text-[11px] text-[#9FB0C3]">{t.noParentsFounders}</span>
@@ -215,13 +271,8 @@ export default function PopulationDrawer({
                 </>
               )}
             </div>
-
             <div className="mx-auto h-3 w-px bg-white/15" />
-
-            {/* Focus Node */}
             <div className="flex justify-center">{renderNodePill(treeFocus.agent_id, '', 'self')}</div>
-
-            {/* Children */}
             {treeFocus.children_ids.length > 0 && (
               <>
                 <div className="mx-auto h-3 w-px bg-white/15" />
@@ -234,8 +285,8 @@ export default function PopulationDrawer({
         )}
       </div>
 
-      {/* Registry Filter + List */}
-      <div className="space-y-2">
+      {/* Searchable Registry List */}
+      <div className="space-y-2 rounded border border-white/10 bg-[#18212C] p-3">
         <div className="flex gap-1">
           {(['living', 'deceased', 'all'] as const).map((f) => (
             <button
@@ -245,7 +296,7 @@ export default function PopulationDrawer({
               className={`flex-1 rounded border py-1.5 text-[11px] font-medium transition ${
                 filter === f
                   ? 'border-[#D99B26] bg-[#D99B26]/15 text-[#F2BE49]'
-                  : 'border-white/10 bg-[#18212C] text-[#9FB0C3]'
+                  : 'border-white/10 bg-[#121821] text-[#9FB0C3]'
               }`}
             >
               {f === 'living'
@@ -264,7 +315,7 @@ export default function PopulationDrawer({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t.searchAgentPlaceholder}
-            className="w-full rounded border border-white/10 bg-[#18212C] py-1.5 pe-2 ps-8 text-xs text-[#E6EDF3] placeholder:text-[#9FB0C3]/60 focus:border-[#D99B26] focus:outline-none"
+            className="w-full rounded border border-white/10 bg-[#121821] py-1.5 pe-2 ps-8 text-xs text-[#E6EDF3] placeholder:text-[#9FB0C3]/60 focus:border-[#D99B26] focus:outline-none"
           />
         </div>
 
@@ -273,14 +324,11 @@ export default function PopulationDrawer({
             <button
               key={ag.agent_id}
               type="button"
-              onClick={() => {
-                onSelectAgent(ag.agent_id);
-                onFlyToAgent(ag.agent_id);
-              }}
+              onClick={() => onSelectAgent(ag.agent_id)}
               className={`flex w-full items-center justify-between rounded border px-2.5 py-2 text-start transition ${
                 selectedAgentId === ag.agent_id
                   ? 'border-[#D99B26] bg-[#D99B26]/10'
-                  : 'border-white/5 bg-[#18212C] hover:border-white/20'
+                  : 'border-white/5 bg-[#121821] hover:border-white/20'
               }`}
             >
               <div className="flex items-center gap-2">

@@ -1,14 +1,16 @@
 export type Locale = 'ar' | 'en';
 export type SnapshotSourceMode = 'empty' | 'published' | 'uploaded' | 'test_fixture' | 'live_runner';
-export type QualityPreset = 'low' | 'medium' | 'high' | 'ultra';
-export type ActiveDrawer =
-  | null
-  | 'inspector'
+export type ObservatorySection =
+  | 'overview'
   | 'population'
+  | 'survival'
+  | 'resources'
   | 'civilization'
-  | 'history'
-  | 'telemetry'
-  | 'comparison';
+  | 'learning'
+  | 'training'
+  | 'history';
+
+export type ActiveDrawer = ObservatorySection | null;
 
 export interface SimClockData {
   tick: number;
@@ -165,6 +167,25 @@ export interface RebirthRecordItem {
   death_penalty_record: DeathPenaltyRecord | null;
 }
 
+export interface TrainingStatsOnAgent {
+  training_attempts: number;
+  training_deaths: number;
+  longest_survival_ticks: number;
+  avg_survival_ticks: number;
+  last_survival_ticks: number;
+  last_cause_of_death: string | null;
+  food_discovered_count: number;
+  food_reach_decisions_count: number;
+  food_reached_count: number;
+  food_consumed_count: number;
+  water_discovered_count: number;
+  water_reach_decisions_count: number;
+  water_reached_count: number;
+  water_consumed_count: number;
+  learning_level_score: number;
+  status: string;
+}
+
 export interface LivingAgentFull {
   agent_id: number;
   sex: 'F' | 'M' | string;
@@ -198,6 +219,7 @@ export interface LivingAgentFull {
   original_cause_of_death: string | null;
   death_penalty_record: DeathPenaltyRecord | null;
   brain_fingerprint: string | null;
+  training_stats?: TrainingStatsOnAgent | null;
   traits: AgentTraits;
   inventory: Record<string, number>;
   skills: Record<string, number>;
@@ -233,6 +255,7 @@ export interface DeceasedAgentArchive {
   original_cause_of_death: string | null;
   death_penalty_record: DeathPenaltyRecord | null;
   brain_fingerprint: string | null;
+  training_stats?: TrainingStatsOnAgent | null;
   traits: AgentTraits;
   skills: Record<string, number>;
   lexicon_size: number;
@@ -242,6 +265,15 @@ export interface DeceasedAgentArchive {
 
 export type AnyAgentRecord = LivingAgentFull | DeceasedAgentArchive;
 
+export interface StableProtowordEntry {
+  key: string;
+  token: number | string;
+  context: string;
+  first_stabilized_tick: number | null;
+  adopter_count: number | null;
+  extinct: boolean;
+}
+
 export interface EmergentLanguageData {
   first_communication_tick: number | null;
   first_repeated_signal_tick: number | null;
@@ -250,7 +282,7 @@ export interface EmergentLanguageData {
   first_grammar_sequence_tick: number | null;
   first_dialect_divergence_tick: number | null;
   stable_protowords_count: number;
-  stable_protowords: Record<string, string>;
+  stable_protowords: Record<string, StableProtowordEntry>;
   top_bigrams: Array<[string, number]>;
   dialect_clusters: Record<string, Record<string, number>>;
   semantic_drift_events: number;
@@ -461,17 +493,239 @@ export interface LearningTelemetryData {
   mean_recent_reward: number;
 }
 
+export interface ResourceFunnel {
+  absent: number;
+  present_undiscovered: number;
+  discovered_no_decision: number;
+  decision_move_failed: number;
+  reached_consume_failed: number;
+  consumed_success: number;
+}
+
+export interface RegionalResourceSlice {
+  food_biomass: number;
+  water_volume: number;
+  living_agents: number;
+}
+
+export interface PopulationAnalyticsData {
+  total_ever_lived: number;
+  living_count: number;
+  deceased_count: number;
+  births_total: number;
+  male_count: number;
+  female_count: number;
+  avg_age_years: number;
+  youngest_living_age_years: number | null;
+  oldest_living_age_years: number | null;
+  birth_rate_per_1000: number;
+  death_rate_per_1000: number;
+  net_growth_rate_per_1000: number;
+  max_generation: number;
+  generations_breakdown: Record<string, number>;
+  family_units_count: number;
+  avg_family_size: number;
+  independent_adults_count: number;
+  dependents_count: number;
+}
+
+export interface SurvivalAnalyticsData {
+  avg_lifespan_ticks: number;
+  avg_lifespan_years: number;
+  longest_lifespan_ticks: number;
+  longest_lifespan_years: number;
+  shortest_lifespan_ticks: number;
+  shortest_lifespan_years: number;
+  premature_deaths_count: number;
+  premature_death_rate_pct: number;
+  deaths_by_cause: Record<string, number>;
+  natural_deaths_count: number;
+  violent_deaths_count: number;
+  avg_survival_by_generation_ticks: Record<string, number>;
+}
+
+export interface FoodWaterAnalyticsData {
+  total_food_biomass: number;
+  available_consumable_food: number;
+  food_consumed_total: number;
+  food_consumption_rate_per_tick: number;
+  total_water_volume: number;
+  available_water_sources: number;
+  water_consumed_total: number;
+  water_consumption_rate_per_tick: number;
+  agents_experienced_hunger: number;
+  agents_experienced_thirst: number;
+  avg_hunger_duration_ticks: number;
+  avg_thirst_duration_ticks: number;
+  starvation_deaths: number;
+  dehydration_deaths: number;
+  nearby_food_reach_failures: number;
+  nearby_water_reach_failures: number;
+  food_funnel: ResourceFunnel;
+  water_funnel: ResourceFunnel;
+  regional_resources: Record<string, RegionalResourceSlice>;
+}
+
+export interface SocialCivilizationAnalyticsData {
+  social_ties_count: number;
+  active_groups_count: number;
+  cooperation_events: number;
+  mutual_aid_events: number;
+  teaching_events: number;
+  knowledge_transfer_events: number;
+  conflicts_count: number;
+  crimes_total: number;
+  crimes_by_type: Record<string, number>;
+  active_language_tokens: number;
+  stable_protowords_count: number;
+  surface_artifacts_count: number;
+  cultivation_events: number;
+  barters_count: number;
+  emergent_markets_count: number;
+  norms_count: number;
+  governance_structures_count: number;
+}
+
+export interface EconomyAnalyticsData {
+  resource_produced: {
+    food_cultivated: number;
+    wood_gathered: number;
+    stone_gathered: number;
+    herb_gathered: number;
+    tools_crafted: number;
+  };
+  resource_consumed: {
+    food: number;
+    water: number;
+  };
+  resource_stored_inventories: {
+    food: number;
+    wood: number;
+    stone: number;
+    herb: number;
+    tool: number;
+  };
+  scarce_resources: string[];
+  wealth_distribution: {
+    gini_inventory: number;
+    median_inventory: number;
+    max_inventory: number;
+    top10_share_pct: number;
+  };
+}
+
+export interface LearningIntelligenceAnalyticsData {
+  total_experiences_stored: number;
+  total_brain_updates: number;
+  total_skills_acquired: number;
+  avg_skills_per_agent: number;
+  food_discovery_events: number;
+  food_reach_events: number;
+  water_discovery_events: number;
+  water_reach_events: number;
+  episodic_memories_total: number;
+  spatial_memories_total: number;
+  intergenerational_transfers: number;
+  individual_updates_std_dev: number;
+  individual_reward_std_dev: number;
+  repeated_failed_actions: number;
+  post_negative_decision_switches: number;
+  telemetry_scope_note: string;
+}
+
+export interface SimulationAnalyticsPayload {
+  available_from_engine: boolean;
+  population: PopulationAnalyticsData;
+  survival: SurvivalAnalyticsData;
+  food_water: FoodWaterAnalyticsData;
+  social_civilization: SocialCivilizationAnalyticsData;
+  economy: EconomyAnalyticsData;
+  learning_intelligence: LearningIntelligenceAnalyticsData;
+}
+
+export interface TrainingAttemptRecord {
+  attempt: number;
+  death_tick: number;
+  survival_ticks: number;
+  cause: string;
+  perceived_cues: string[];
+  last_action: string;
+}
+
+export interface TrainingAgentRow {
+  agent_id: number;
+  sex: string;
+  attempts: number;
+  deaths: number;
+  longest_survival_ticks: number;
+  avg_survival_ticks: number;
+  last_survival_ticks: number;
+  last_cause_of_death: string | null;
+  food_discovered: number;
+  food_reach_decisions: number;
+  food_reached: number;
+  food_consumed: number;
+  water_discovered: number;
+  water_reach_decisions: number;
+  water_reached: number;
+  water_consumed: number;
+  skills_count: number;
+  episodic_memories_count: number;
+  spatial_memories_count: number;
+  brain_updates: number;
+  learning_level_score: number;
+  mean_recent_reward: number;
+  status: string;
+  attempt_history: TrainingAttemptRecord[];
+}
+
+export interface TrainingAttemptProgressionPoint {
+  tick: number;
+  total_deaths: number;
+  avg_survival_ticks: number;
+  food_consumed_total: number;
+  water_consumed_total: number;
+  total_brain_updates: number;
+}
+
+export interface TrainingAnalyticsPayload {
+  system_name: string;
+  phase: string;
+  agent_count: number;
+  training_ticks_executed: number;
+  total_attempts: number;
+  total_deaths: number;
+  survival_avg_ticks: number;
+  longest_survival_ticks: number;
+  stage_totals: {
+    food_discovered: number;
+    food_reach_decisions: number;
+    food_reached: number;
+    food_consumed: number;
+    water_discovered: number;
+    water_reach_decisions: number;
+    water_reached: number;
+    water_consumed: number;
+  };
+  death_causes_breakdown: Record<string, number>;
+  attempt_progression: TrainingAttemptProgressionPoint[];
+  agents: TrainingAgentRow[];
+}
+
 export interface ObservatorySnapshot {
   export_schema_version: string;
   exported_at_utc: string;
+  simulation_phase: 'training' | 'civilization' | string;
   world_id: string;
   timeline_id: string;
   parent_timeline_id: string | null;
-  timeline_kind: 'original' | 'experimental_rebirth' | string;
+  timeline_kind: 'original' | 'experimental_rebirth' | 'isolated_training' | string;
   branch_point_tick: number | null;
   rebirth_records: RebirthRecordItem[];
   recovery_state?: RecoveryStateData;
   learning_telemetry?: LearningTelemetryData;
+  analytics: SimulationAnalyticsPayload;
+  training_analytics: TrainingAnalyticsPayload | null;
   backend: string;
   clock: SimClockData;
   engine_capabilities: EngineCapabilities;
@@ -504,7 +758,7 @@ export interface LiveTimelineSummary {
   world_id: string;
   timeline_id: string;
   parent_timeline_id: string | null;
-  timeline_kind: 'original' | 'experimental_rebirth' | string;
+  timeline_kind: 'original' | 'experimental_rebirth' | 'isolated_training' | string;
   branch_point_tick: number | null;
   tick: number;
   sim_date: string;

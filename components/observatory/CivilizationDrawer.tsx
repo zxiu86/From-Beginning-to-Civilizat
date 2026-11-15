@@ -72,15 +72,14 @@ export default function CivilizationDrawer({t, snapshot}: CivilizationDrawerProp
         {protoList.length === 0 ? (
           <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
             {protoList.map(([ctx, tokenStr]) => (
               <div
                 key={ctx}
-                className="rounded border border-white/10 bg-[#121821] px-2 py-1 text-[11px]"
+                className="flex items-center justify-between rounded border border-white/10 bg-[#121821] px-2 py-1 text-[11px]"
               >
                 <span className="font-mono text-[#57b8d8]">{tokenStr}</span>
-                <span className="mx-1 text-white/20">→</span>
-                <span className="text-[#9FB0C3]">{t.contexts[ctx] ?? ctx}</span>
+                <span className="truncate text-[#9FB0C3]">{t.contexts[ctx] ?? ctx}</span>
               </div>
             ))}
           </div>
@@ -228,14 +227,17 @@ export default function CivilizationDrawer({t, snapshot}: CivilizationDrawerProp
         {techs.length === 0 ? (
           <div className="text-[11px] text-[#9FB0C3]">{t.notYetInvented}</div>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {techs.map(([tech, cnt]) => (
-              <span
+          <div className="space-y-1">
+            {techs.map(([tech, discoveredTick]) => (
+              <div
                 key={tech}
-                className="rounded border border-[#D99B26]/30 bg-[#121821] px-2 py-1 text-[11px]"
+                className="flex items-center justify-between rounded border border-white/10 bg-[#121821] px-2.5 py-1.5 text-[11px]"
               >
-                {t.techs[tech] ?? tech} <span className="font-mono text-[#F2BE49]">({cnt})</span>
-              </span>
+                <span className="text-[#E6EDF3]">{t.techs[tech] ?? tech}</span>
+                <span className="font-mono text-[#F2BE49] tabular-nums">
+                  {t.tickUnit} {discoveredTick}
+                </span>
+              </div>
             ))}
           </div>
         )}

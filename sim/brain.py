@@ -49,6 +49,8 @@ class ExperienceItem:
     log_prob_action: float
     reward: float
     value_est: float
+    tick: int = 0
+    context_tag: str = "general"
 
 
 def _sigmoid(x: float) -> float:
@@ -115,6 +117,7 @@ class AgentBrain:
         self.experience: List[ExperienceItem] = []
         self.total_updates: int = 0
         self.last_loss: float = 0.0
+        self.death_penalty_history: List[dict] = []
 
         init_seed = seed if seed is not None else (agent_id * 7919 + 104729)
         self._local_rng = random.Random(init_seed)
@@ -283,6 +286,8 @@ class AgentBrain:
         reward: float,
         value_est: float,
         max_buffer: int = 48,
+        tick: int = 0,
+        context_tag: str = "general",
     ) -> None:
         self.experience.append(
             ExperienceItem(
@@ -293,10 +298,159 @@ class AgentBrain:
                 log_prob_action=log_prob_action,
                 reward=reward,
                 value_est=value_est,
+                tick=tick,
+                context_tag=context_tag,
             )
         )
         if len(self.experience) > max_buffer:
             self.experience = self.experience[-max_buffer:]
+
+    def apply_death_penalty_learning(
+        self,
+        cause: str,
+        death_tick: int,
+        perceived_cues: Optional[Dict[str, float]] = None,
+    ) -> dict:
+        """
+        Apply a real, bounded neural weight update at death strictly from this agent's OWN
+        preceding personally experienced trajectory and sensory cues.
+        Never injects external rules, scripted survival instincts, or medical facts for disease.
+        """
+        cues = perceived_cues or {}
+        norm_cause = cause.lower()
+        before_fp = self.weight_fingerprint()
+
+        # Determine cause-linked local evidence weight (disease gets weak generic malaise only, zero medical knowledge)
+        if "starv" in norm_cause:
+            cause_category = "starvation"
+            penalty_scale = -2.4
+            evidence_basis = "hunger_deficit_preceding_experience"
+        elif "dehydrat" in norm_cause:
+            cause_category = "dehydration"
+            penalty_scale = -2.6
+            evidence_basis = "thirst_deficit_preceding_experience"
+        elif "murder" in norm_cause or "assault" in norm_cause or "attack" in norm_cause:
+            cause_category = "violence"
+            penalty_scale = -2.2
+            evidence_basis = "hostile_encounter_preceding_experience"
+        elif "predator" in norm_cause:
+            cause_category = "predator"
+            penalty_scale = -2.0
+            evidence_basis = "predator_proximity_preceding_experience"
+        elif "old_age" in norm_cause:
+            cause_category = "old_age"
+            penalty_scale = -0.15
+            evidence_basis = "senescence_natural_limit"
+        else:
+            # Disease or unattributed internal illness: only weak malaise signal, zero medical prescription
+            cause_category = "illness_or_injury"
+            penalty_scale = -0.45
+            evidence_basis = "bodily_distress_without_causal_knowledge"
+
+        recent = list(self.experience[-10:])
+        if not recent:
+            record = {
+                "death_tick": death_tick,
+                "cause": cause,
+                "cause_category": cause_category,
+                "applied": False,
+                "reason": "no_preceding_perceived_experience",
+                "evidence_basis": evidence_basis,
+                "signal_strength": 0.0,
+                "linked_experience_count": 0,
+                "weight_fingerprint_before": before_fp,
+                "weight_fingerprint_after": before_fp,
+                "total_updates_after": self.total_updates,
+            }
+            self.death_penalty_history.append(record)
+            return record
+
+        # Assign temporally decayed negative returns over the agent's own final experiences
+        n = len(recent)
+        returns: List[float] = []
+        for idx, item in enumerate(recent):
+            recency = (idx + 1) / float(n)
+            # Modulate slightly only by cues personally felt before death (never omniscient causes)
+            local_intensity = 1.0
+            if cause_category == "starvation":
+                local_intensity = 0.7 + 0.6 * min(1.0, cues.get("hunger", 0.9))
+            elif cause_category == "dehydration":
+                local_intensity = 0.7 + 0.6 * min(1.0, cues.get("thirst", 0.9))
+            elif cause_category == "violence":
+                local_intensity = 0.7 + 0.5 * min(1.0, cues.get("injury", 0.6))
+            returns.append(item.reward + penalty_scale * recency * local_intensity)
+
+        loss_val = 0.0
+        if TORCH_AVAILABLE and self._net is not None and self._opt is not None and torch is not None:
+            obs_t = torch.tensor([b.obs for b in recent], dtype=torch.float32)
+            h_t = torch.tensor([b.hidden_before for b in recent], dtype=torch.float32)
+            act_t = torch.tensor([b.action_idx for b in recent], dtype=torch.long)
+            ret_t = torch.tensor(returns, dtype=torch.float32)
+
+            act_logits, _, values, _ = self._net(obs_t, h_t)
+            advantages = torch.clamp(ret_t - values.detach(), -4.0, 4.0)
+            log_probs = F.log_softmax(act_logits, dim=-1)
+            chosen_lp = log_probs.gather(1, act_t.unsqueeze(1)).squeeze(1)
+
+            policy_loss = -(chosen_lp * advantages).mean()
+            value_loss = F.mse_loss(values, ret_t)
+            loss = policy_loss + 0.6 * value_loss
+
+            self._opt.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self._net.parameters(), 1.5)
+            self._opt.step()
+            loss_val = float(loss.item())
+        else:
+            lr = self.learning_rate * 1.25
+            w = self._w
+            total_l = 0.0
+            for idx, item in enumerate(recent):
+                act_logits, _, val, h_next = self._pure_python_forward(item.obs, item.hidden_before)
+                adv = max(-3.5, min(3.5, returns[idx] - val))
+                val_err = returns[idx] - val
+                probs_a = _softmax(act_logits)
+                total_l += 0.5 * (val_err ** 2) - adv * math.log(max(1e-6, probs_a[item.action_idx]))
+
+                for a in range(self.num_actions):
+                    grad_logit = (probs_a[a] - (1.0 if a == item.action_idx else 0.0)) * adv
+                    w["b_act"][a] -= lr * grad_logit
+                    row = w["W_act"][a]
+                    for j in range(self.hidden_dim):
+                        row[j] -= lr * grad_logit * h_next[j]
+
+                w["b_val"][0] += lr * 0.5 * val_err
+                wv = w["W_val"][0]
+                for j in range(self.hidden_dim):
+                    wv[j] += lr * 0.5 * val_err * h_next[j]
+
+                for i in range(self.hidden_dim):
+                    delta_h = max(-0.6, min(0.6, adv * w["W_act"][item.action_idx][i] * (1.0 - h_next[i] * h_next[i])))
+                    w["b_n"][i] += lr * 0.25 * delta_h
+                    row_in = w["W_in"][i]
+                    for j in range(self.obs_dim):
+                        row_in[j] += lr * 0.25 * delta_h * item.obs[j]
+            loss_val = total_l / len(recent)
+
+        self.total_updates += 1
+        self.last_loss = round(loss_val, 6)
+        after_fp = self.weight_fingerprint()
+
+        record = {
+            "death_tick": death_tick,
+            "cause": cause,
+            "cause_category": cause_category,
+            "applied": True,
+            "evidence_basis": evidence_basis,
+            "signal_strength": round(abs(penalty_scale), 3),
+            "linked_experience_count": len(recent),
+            "weight_fingerprint_before": before_fp,
+            "weight_fingerprint_after": after_fp,
+            "weights_changed": before_fp != after_fp,
+            "total_updates_after": self.total_updates,
+        }
+        self.death_penalty_history.append(record)
+        return record
 
     def learn_from_experience(self, batch_size: int = 12, gamma: float = 0.92) -> Optional[float]:
         """Perform a bounded local policy-gradient + value update using this agent's own experiences."""
@@ -426,9 +580,12 @@ class AgentBrain:
                     "log_prob_action": e.log_prob_action,
                     "reward": e.reward,
                     "value_est": e.value_est,
+                    "tick": e.tick,
+                    "context_tag": e.context_tag,
                 }
                 for e in self.experience
             ],
+            "death_penalty_history": list(self.death_penalty_history),
         }
         if TORCH_AVAILABLE and self._net is not None and self._opt is not None:
             state["torch_model_state"] = self._net.state_dict()
@@ -451,7 +608,21 @@ class AgentBrain:
         brain.hidden_state = list(state["hidden_state"])
         brain.total_updates = int(state.get("total_updates", 0))
         brain.last_loss = float(state.get("last_loss", 0.0))
-        brain.experience = [ExperienceItem(**e) for e in state.get("experience", [])]
+        brain.experience = [
+            ExperienceItem(
+                obs=list(e["obs"]),
+                hidden_before=list(e["hidden_before"]),
+                action_idx=int(e["action_idx"]),
+                signal_idx=int(e["signal_idx"]),
+                log_prob_action=float(e["log_prob_action"]),
+                reward=float(e["reward"]),
+                value_est=float(e["value_est"]),
+                tick=int(e.get("tick", 0)),
+                context_tag=str(e.get("context_tag", "general")),
+            )
+            for e in state.get("experience", [])
+        ]
+        brain.death_penalty_history = list(state.get("death_penalty_history", []))
         if TORCH_AVAILABLE and brain._net is not None and brain._opt is not None and "torch_model_state" in state:
             brain._net.load_state_dict(state["torch_model_state"])
             brain._opt.load_state_dict(state["torch_optim_state"])

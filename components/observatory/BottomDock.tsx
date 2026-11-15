@@ -7,6 +7,7 @@ import {
   Crosshair,
   Eye,
   EyeOff,
+  GitCompare,
   History,
   Landmark,
   User,
@@ -63,6 +64,7 @@ export default function BottomDock({
     {id: 'civilization', label: t.tabCivilization, icon: <Landmark className="h-3.5 w-3.5" />},
     {id: 'history', label: t.tabHistory, icon: <History className="h-3.5 w-3.5" />},
     {id: 'telemetry', label: t.tabTelemetry, icon: <Activity className="h-3.5 w-3.5" />},
+    {id: 'comparison', label: t.tabComparison, icon: <GitCompare className="h-3.5 w-3.5" />},
   ];
 
   return (
@@ -108,7 +110,7 @@ export default function BottomDock({
             onClick={onToggleFollow}
             className={`flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs transition ${
               followAgent
-                ? 'bg-[#3B82A6]/25 text-[#57b8d8] border border-[#3B82A6]/50'
+                ? 'border border-[#3B82A6]/50 bg-[#3B82A6]/25 text-[#57b8d8]'
                 : 'text-[#9FB0C3] hover:bg-white/5 hover:text-[#E6EDF3]'
             }`}
           >

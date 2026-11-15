@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from .brain import AgentBrain
 from .communication import SEMANTIC_CONTEXTS
 from .memory import MemoryEngine
+from .physics import attempt_steered_move
 
 if TYPE_CHECKING:
     from .communication import CommunicationEngine
@@ -100,6 +101,18 @@ class Agent:
     lexicon: Dict[int, Dict[str, float]] = field(default_factory=dict)  # token -> {context: confidence}
     last_emitted_token: Optional[int] = None
     last_action: str = "rest"
+    carried_item: Optional[str] = None
+    last_partner_id: Optional[int] = None
+    last_move_dx: float = 0.0
+    last_move_dy: float = 0.0
+
+    # Rebirth & experimental timeline metadata
+    rebirth_count: int = 0
+    rebirth_tick: Optional[int] = None
+    original_death_tick: Optional[int] = None
+    original_death_date: Optional[str] = None
+    original_cause_of_death: Optional[str] = None
+    death_penalty_record: Optional[dict] = None
 
     traits: PersonalityTraits = field(default_factory=lambda: PersonalityTraits(0.5, 0.5, 0.5, 0.3, 0.5))
     memory: MemoryEngine = field(default_factory=MemoryEngine)
@@ -150,6 +163,16 @@ class Agent:
             "lexicon": {str(tok): ctx_map for tok, ctx_map in self.lexicon.items()},
             "last_emitted_token": self.last_emitted_token,
             "last_action": self.last_action,
+            "carried_item": self.carried_item,
+            "last_partner_id": self.last_partner_id,
+            "last_move_dx": round(self.last_move_dx, 3),
+            "last_move_dy": round(self.last_move_dy, 3),
+            "rebirth_count": self.rebirth_count,
+            "rebirth_tick": self.rebirth_tick,
+            "original_death_tick": self.original_death_tick,
+            "original_death_date": self.original_death_date,
+            "original_cause_of_death": self.original_cause_of_death,
+            "death_penalty_record": self.death_penalty_record,
             "traits": asdict(self.traits),
             "memory": self.memory.to_dict(),
         }
@@ -187,6 +210,16 @@ class Agent:
             },
             last_emitted_token=d.get("last_emitted_token"),
             last_action=str(d.get("last_action", "rest")),
+            carried_item=d.get("carried_item"),
+            last_partner_id=d.get("last_partner_id"),
+            last_move_dx=float(d.get("last_move_dx", 0.0)),
+            last_move_dy=float(d.get("last_move_dy", 0.0)),
+            rebirth_count=int(d.get("rebirth_count", 0)),
+            rebirth_tick=d.get("rebirth_tick"),
+            original_death_tick=d.get("original_death_tick"),
+            original_death_date=d.get("original_death_date"),
+            original_cause_of_death=d.get("original_cause_of_death"),
+            death_penalty_record=d.get("death_penalty_record"),
             traits=PersonalityTraits(**d["traits"]),
             memory=MemoryEngine.from_dict(d["memory"]),
             brain=brain,
@@ -340,18 +373,37 @@ class AgentEngine:
         cause: str,
         history: "HistoryKnowledgeEngine",
     ) -> None:
-        """Permanent, irreversible death. Clears active neural handle from living pool while archiving identity."""
+        """
+        Permanent death in the current timeline: halts living agency while archiving full identity,
+        applying local evidence-based death-penalty neural learning, and preserving neural weights
+        and pre-death personal memory strictly bounded to <= death_tick for archival/experimental rebirth.
+        """
         if not agent.is_alive:
             return
         agent.is_alive = False
         agent.health = 0.0
         agent.energy = 0.0
         agent.is_pregnant = False
+        agent.last_partner_id = None
         agent.death_tick = tick
         agent.cause_of_death = cause
-        # Release heavy experience buffer for dead agents while keeping registry & lineage intact
+        if agent.original_death_tick is None:
+            agent.original_death_tick = tick
+            agent.original_death_date = sim_date
+            agent.original_cause_of_death = cause
+
+        # Apply cause-linked local neural penalty strictly from this agent's own preceding perceived trace
         if agent.brain is not None:
-            agent.brain.experience.clear()
+            agent.death_penalty_record = agent.brain.apply_death_penalty_learning(
+                cause=cause,
+                death_tick=tick,
+                perceived_cues={
+                    "hunger": agent.hunger,
+                    "thirst": agent.thirst,
+                    "injury": agent.injury,
+                    "disease": agent.disease_load,
+                },
+            )
 
         if self.first_death_tick is None:
             self.first_death_tick = tick
@@ -465,6 +517,9 @@ class AgentEngine:
         """Execute chosen action with real biological/material costs and return experiential reward."""
         act = ACTION_NAMES[action_idx]
         agent.last_action = act
+        agent.last_partner_id = None
+        agent.last_move_dx = 0.0
+        agent.last_move_dy = 0.0
         reward = 0.0
 
         # Base daily metabolism
@@ -483,7 +538,13 @@ class AgentEngine:
                 agent.thirst = max(0.0, agent.thirst - 0.09)
 
         cidx = world.cell_index_at(agent.x, agent.y)
-        move_speed = 38.0 * max(0.35, 1.0 - 0.45 * world.slope[cidx]) * (0.4 if agent.life_stage == "infant" else 1.0)
+        carry_load = (
+            agent.inventory.get("wood", 0.0) * 0.015
+            + agent.inventory.get("stone", 0.0) * 0.02
+            + agent.inventory.get("tool", 0.0) * 0.01
+        )
+        carry_drag = max(0.75, 1.0 - min(0.25, carry_load))
+        move_speed = 38.0 * max(0.35, 1.0 - 0.45 * world.slope[cidx]) * carry_drag * (0.4 if agent.life_stage == "infant" else 1.0)
         if world.weather.condition in ("storm", "flood"):
             move_speed *= 0.65
 
@@ -518,18 +579,33 @@ class AgentEngine:
             reward += 0.08 if agent.energy < 0.4 else -0.02
 
         elif act in ("move_north", "move_south", "move_east", "move_west"):
-            dx, dy = {
-                "move_north": (0.0, -move_speed),
-                "move_south": (0.0, move_speed),
-                "move_east": (move_speed, 0.0),
-                "move_west": (-move_speed, 0.0),
+            dir_x, dir_y = {
+                "move_north": (0.0, -1.0),
+                "move_south": (0.0, 1.0),
+                "move_east": (1.0, 0.0),
+                "move_west": (-1.0, 0.0),
             }[act]
-            # Slight stochastic wander so movement explores terrain smoothly
-            nx, ny = world.clamp_coords(agent.x + dx + rng.uniform(-6.0, 6.0), agent.y + dy + rng.uniform(-6.0, 6.0))
-            nidx = world.cell_index_at(nx, ny)
-            if world.water[nidx] < 95.0:  # Avoid walking straight into deep central lake
+            nearby_coords = [
+                (self.all_agents[nid].x, self.all_agents[nid].y)
+                for nid in perc.nearby_agent_ids[:12]
+                if nid in self.all_agents and self.all_agents[nid].is_alive
+            ]
+            nx, ny, moved_m = attempt_steered_move(
+                world=world,
+                x=agent.x,
+                y=agent.y,
+                target_dx=dir_x + rng.uniform(-0.15, 0.15),
+                target_dy=dir_y + rng.uniform(-0.15, 0.15),
+                step_dist=move_speed,
+                nearby_obstacles=nearby_coords,
+            )
+            if moved_m > 0.2:
+                agent.last_move_dx = nx - agent.x
+                agent.last_move_dy = ny - agent.y
                 agent.x, agent.y = nx, ny
-                agent.energy = max(0.0, agent.energy - 0.04)
+                nidx = world.cell_index_at(nx, ny)
+                slope_cost = 0.04 * (1.0 + 0.5 * world.slope[nidx])
+                agent.energy = max(0.0, agent.energy - slope_cost)
                 if self.first_movement_tick is None:
                     self.first_movement_tick = tick
                     history.record_truth(
@@ -537,6 +613,8 @@ class AgentEngine:
                         f"First purposeful movement recorded by agent {agent.agent_id}.",
                     )
                 reward += 0.03
+            else:
+                reward -= 0.02
 
         elif act == "forage_food":
             skill_bonus = 1.0 + 0.6 * agent.memory.skills.get("foraging", 0.1)
@@ -600,6 +678,7 @@ class AgentEngine:
             agent.energy = max(0.0, agent.energy - 0.05)
             if taken > 0.05:
                 agent.inventory["wood"] = min(10.0, agent.inventory.get("wood", 0.0) + taken)
+                agent.carried_item = "wood"
                 reward += 0.18
             else:
                 reward -= 0.08
@@ -609,6 +688,7 @@ class AgentEngine:
             agent.energy = max(0.0, agent.energy - 0.06)
             if taken > 0.05:
                 agent.inventory["stone"] = min(10.0, agent.inventory.get("stone", 0.0) + taken)
+                agent.carried_item = "stone"
                 reward += 0.18
             else:
                 reward -= 0.08
@@ -618,6 +698,7 @@ class AgentEngine:
             agent.energy = max(0.0, agent.energy - 0.04)
             if taken > 0.05:
                 agent.inventory["herb"] = min(5.0, agent.inventory.get("herb", 0.0) + taken)
+                agent.carried_item = "herb"
                 reward += 0.15
             else:
                 reward -= 0.06
@@ -684,6 +765,7 @@ class AgentEngine:
 
             # Nearby listeners learn through observation/imitation (with transmission noise/mutation)
             if perc.nearby_agent_ids:
+                agent.last_partner_id = perc.nearby_agent_ids[0]
                 if self.first_interaction_tick is None:
                     self.first_interaction_tick = tick
                     history.record_truth(
@@ -735,6 +817,7 @@ class AgentEngine:
             if target_id is not None and perc.nearest_agent_dist <= 38.0:
                 other = self.all_agents.get(target_id)
                 if other and other.is_alive:
+                    agent.last_partner_id = other.agent_id
                     if self.first_interaction_tick is None:
                         self.first_interaction_tick = tick
                         history.record_truth(
@@ -770,6 +853,7 @@ class AgentEngine:
             if target_id is not None and perc.nearest_agent_dist <= 35.0 and agent.life_stage != "infant":
                 victim = self.all_agents.get(target_id)
                 if victim and victim.is_alive and victim.inventory.get("food", 0.0) >= 0.35:
+                    agent.last_partner_id = victim.agent_id
                     stolen = min(0.7, victim.inventory["food"])
                     victim.inventory["food"] -= stolen
                     agent.inventory["food"] = min(10.0, agent.inventory.get("food", 0.0) + stolen)
@@ -803,6 +887,7 @@ class AgentEngine:
             if target_id is not None and perc.nearest_agent_dist <= 32.0 and agent.life_stage != "infant":
                 victim = self.all_agents.get(target_id)
                 if victim and victim.is_alive:
+                    agent.last_partner_id = victim.agent_id
                     agent.energy = max(0.0, agent.energy - 0.12)
                     dmg = rng.uniform(0.18, 0.38) + (0.20 if agent.inventory.get("tool", 0.0) >= 1.0 else 0.0)
                     victim.health = max(0.0, victim.health - dmg)
@@ -882,6 +967,8 @@ class AgentEngine:
                 )
 
         elif act == "socialize_mate_or_mediate":
+            if perc.nearest_agent_id is not None:
+                agent.last_partner_id = perc.nearest_agent_id
             # 1) Try group formation / norm proposal / dispute mediation if trusting peers nearby
             allies = [
                 oid for oid in perc.nearby_agent_ids

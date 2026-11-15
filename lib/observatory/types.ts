@@ -1,13 +1,14 @@
 export type Locale = 'ar' | 'en';
-export type SnapshotSourceMode = 'empty' | 'published' | 'uploaded' | 'test_fixture';
-export type QualityPreset = 'high' | 'low';
+export type SnapshotSourceMode = 'empty' | 'published' | 'uploaded' | 'test_fixture' | 'live_runner';
+export type QualityPreset = 'low' | 'medium' | 'high' | 'ultra';
 export type ActiveDrawer =
   | null
   | 'inspector'
   | 'population'
   | 'civilization'
   | 'history'
-  | 'telemetry';
+  | 'telemetry'
+  | 'comparison';
 
 export interface SimClockData {
   tick: number;
@@ -78,12 +79,11 @@ export interface EcosystemSummary {
 }
 
 export interface AgentTraits {
-  aggression: number;
-  curiosity: number;
-  sociability: number;
-  risk_tolerance: number;
+  boldness: number;
   empathy: number;
-  endurance: number;
+  curiosity: number;
+  aggression: number;
+  cooperation: number;
 }
 
 export interface EpisodicMemoryItem {
@@ -134,6 +134,37 @@ export interface LocalPerceptionData {
   heard_emissions: HeardEmissionItem[];
 }
 
+export interface DeathPenaltyRecord {
+  applied: boolean;
+  cause?: string;
+  death_tick?: number;
+  perceived_cues?: string[];
+  evidence_count?: number;
+  mean_advantage?: number;
+  loss_value?: number;
+  pre_weight_fingerprint?: string;
+  post_weight_fingerprint?: string;
+  note?: string;
+  medical_knowledge_added?: boolean;
+}
+
+export interface RebirthRecordItem {
+  agent_id: number;
+  generation: number;
+  birth_tick: number;
+  original_death_tick: number | null;
+  original_cause_of_death: string | null;
+  rebirth_tick: number;
+  rebirth_date: string;
+  rebirth_count: number;
+  preserved_age_ticks: number;
+  brain_fingerprint: string;
+  episodic_memories_kept: number;
+  spatial_memories_kept: number;
+  death_penalty_applied: boolean;
+  death_penalty_record: DeathPenaltyRecord | null;
+}
+
 export interface LivingAgentFull {
   agent_id: number;
   sex: 'F' | 'M' | string;
@@ -158,6 +189,15 @@ export interface LivingAgentFull {
   gestation_ticks: number;
   last_action: string;
   last_emitted_token: number | null;
+  carried_item: string | null;
+  last_partner_id: number | null;
+  rebirth_count: number;
+  rebirth_tick: number | null;
+  original_death_tick: number | null;
+  original_death_date: string | null;
+  original_cause_of_death: string | null;
+  death_penalty_record: DeathPenaltyRecord | null;
+  brain_fingerprint: string | null;
   traits: AgentTraits;
   inventory: Record<string, number>;
   skills: Record<string, number>;
@@ -186,6 +226,13 @@ export interface DeceasedAgentArchive {
   children_ids: number[];
   is_alive: false;
   last_action: string;
+  rebirth_count: number;
+  rebirth_tick: number | null;
+  original_death_tick: number | null;
+  original_death_date: string | null;
+  original_cause_of_death: string | null;
+  death_penalty_record: DeathPenaltyRecord | null;
+  brain_fingerprint: string | null;
   traits: AgentTraits;
   skills: Record<string, number>;
   lexicon_size: number;
@@ -221,6 +268,7 @@ export interface CrimeRecordItem {
   y: number;
   known_to_society: boolean;
   punished: boolean;
+  resolution_type?: string | null;
 }
 
 export interface ExchangeHubItem {
@@ -277,6 +325,8 @@ export interface TruthEventItem {
   x: number;
   y: number;
   description: string;
+  source?: string;
+  certainty?: number;
   metadata?: Record<string, unknown>;
 }
 
@@ -290,6 +340,8 @@ export interface WitnessAccountItem {
   y: number;
   confidence: number;
   distorted: boolean;
+  distortion_score: number;
+  artifact_id: number | null;
   summary: string;
 }
 
@@ -311,8 +363,11 @@ export interface GenerationalInterpretationItem {
   generation: number;
   interpreter_agent_id: number;
   source_artifact_id: number | null;
+  inferred_topic: string;
   belief_narrative: string;
   accuracy_estimate: number;
+  belief_confidence: number;
+  is_revisionist: boolean;
 }
 
 export interface HistoryLayersData {
@@ -372,6 +427,11 @@ export interface ObservatorySnapshot {
   export_schema_version: string;
   exported_at_utc: string;
   world_id: string;
+  timeline_id: string;
+  parent_timeline_id: string | null;
+  timeline_kind: 'original' | 'experimental_rebirth' | string;
+  branch_point_tick: number | null;
+  rebirth_records: RebirthRecordItem[];
   backend: string;
   clock: SimClockData;
   engine_capabilities: EngineCapabilities;
@@ -397,4 +457,84 @@ export interface ReplayEventTarget {
   y: number;
   agent_ids: number[];
   description: string;
+}
+
+export interface LiveTimelineSummary {
+  id: string;
+  world_id: string;
+  timeline_id: string;
+  parent_timeline_id: string | null;
+  timeline_kind: 'original' | 'experimental_rebirth' | string;
+  branch_point_tick: number | null;
+  tick: number;
+  sim_date: string;
+  living_count: number;
+  deceased_count: number;
+  frame_ticks: number[];
+}
+
+export interface TimelineComparisonReport {
+  original: Record<string, unknown> & {
+    world_id?: string;
+    timeline_id?: string;
+    timeline_kind?: string;
+    tick: number;
+    sim_date?: string;
+    living_count: number;
+    deceased_count: number;
+    total_agents_ever: number;
+    survival_rate_pct: number;
+    births_total: number;
+    causes_of_death: Record<string, number>;
+    total_crimes: number;
+    crimes_per_1000_pop: number;
+    total_barters: number;
+    social_trust_index: number;
+    stability_index: number | null;
+    active_groups: number;
+  };
+  experimental: Record<string, unknown> & {
+    world_id?: string;
+    timeline_id?: string;
+    parent_timeline_id?: string | null;
+    timeline_kind?: string;
+    branch_point_tick?: number | null;
+    tick: number;
+    sim_date?: string;
+    living_count: number;
+    deceased_count: number;
+    total_agents_ever: number;
+    survival_rate_pct: number;
+    births_total: number;
+    causes_of_death: Record<string, number>;
+    total_crimes: number;
+    crimes_per_1000_pop: number;
+    total_barters: number;
+    social_trust_index: number;
+    stability_index: number | null;
+    active_groups: number;
+  };
+  deltas: {
+    living_count_delta: number;
+    survival_rate_pct_delta: number;
+    births_delta: number;
+    crimes_delta: number;
+    barters_delta: number;
+  };
+  rebirth_agents_count: number;
+  rebirth_agents_still_alive: number;
+  rebirth_audit: Array<{
+    agent_id: number;
+    generation: number;
+    original_death_tick: number | null;
+    original_cause_of_death: string | null;
+    rebirth_tick: number | null;
+    death_penalty_applied: boolean;
+    death_penalty_record: DeathPenaltyRecord | null;
+    currently_alive: boolean;
+    current_last_action: string | null;
+    post_rebirth_death_tick: number | null;
+    post_rebirth_cause_of_death: string | null;
+    brain_fingerprint: string | null;
+  }>;
 }

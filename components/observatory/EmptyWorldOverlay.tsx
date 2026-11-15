@@ -1,25 +1,33 @@
 'use client';
 
 import React, {useState} from 'react';
-import {AlertCircle, Beaker, FileUp, Terminal} from 'lucide-react';
+import {AlertCircle, Beaker, FileUp, FolderOpen, Play, Terminal} from 'lucide-react';
 import type {Translations} from '@/lib/observatory/i18n';
 
 interface EmptyWorldOverlayProps {
   t: Translations;
   uploadError: string | null;
   loadingFixture: boolean;
+  liveApiAvailable: boolean;
+  creatingLiveWorld: boolean;
   onUploadFile: (file: File) => void;
   onUploadClick: () => void;
+  onMultiImportClick: () => void;
   onLoadTestFixture: () => void;
+  onStartLiveWorld: () => void;
 }
 
 export default function EmptyWorldOverlay({
   t,
   uploadError,
   loadingFixture,
+  liveApiAvailable,
+  creatingLiveWorld,
   onUploadFile,
   onUploadClick,
+  onMultiImportClick,
   onLoadTestFixture,
+  onStartLiveWorld,
 }: EmptyWorldOverlayProps) {
   const [dragging, setDragging] = useState(false);
 
@@ -56,13 +64,34 @@ export default function EmptyWorldOverlay({
           </div>
         )}
 
-        <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {liveApiAvailable && (
+            <button
+              type="button"
+              onClick={onStartLiveWorld}
+              disabled={creatingLiveWorld}
+              className="flex items-center justify-center gap-2 rounded border border-emerald-500/50 bg-emerald-500/20 px-4 py-2.5 text-xs font-bold text-emerald-200 transition hover:bg-emerald-500/30 disabled:opacity-50"
+            >
+              <Play className="h-4 w-4" />
+              <span>{t.newWorldBtn}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onMultiImportClick}
+            className="flex items-center justify-center gap-2 rounded border border-[#D99B26] bg-[#D99B26] px-4 py-2.5 text-xs font-bold text-[#0B0F14] transition hover:bg-[#e5a93c]"
+          >
+            <FolderOpen className="h-4 w-4" />
+            <span>{t.multiImportBtn}</span>
+          </button>
+
           <button
             type="button"
             onClick={onUploadClick}
-            className="flex flex-1 items-center justify-center gap-2 rounded border border-[#D99B26] bg-[#D99B26] px-4 py-2.5 text-xs font-bold text-[#0B0F14] transition hover:bg-[#e5a93c]"
+            className="flex items-center justify-center gap-2 rounded border border-white/15 bg-[#18212C] px-4 py-2.5 text-xs font-medium text-[#E6EDF3] transition hover:border-[#D99B26]/60"
           >
-            <FileUp className="h-4 w-4" />
+            <FileUp className="h-4 w-4 text-[#D99B26]" />
             <span>{t.uploadSnapshotBtn}</span>
           </button>
 
@@ -70,7 +99,7 @@ export default function EmptyWorldOverlay({
             type="button"
             onClick={onLoadTestFixture}
             disabled={loadingFixture}
-            className="flex flex-1 items-center justify-center gap-2 rounded border border-white/15 bg-[#18212C] px-4 py-2.5 text-xs font-medium text-[#E6EDF3] transition hover:border-[#D99B26]/60 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded border border-white/15 bg-[#18212C] px-4 py-2.5 text-xs font-medium text-[#E6EDF3] transition hover:border-[#D99B26]/60 disabled:opacity-50"
           >
             <Beaker className="h-4 w-4 text-[#D99B26]" />
             <span>{t.loadTestFixtureBtn}</span>

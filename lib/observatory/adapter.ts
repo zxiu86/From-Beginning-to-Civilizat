@@ -1,10 +1,19 @@
 import type {
+  AgentTraits,
   AnyAgentRecord,
+  CrimeRecordItem,
+  DeathPenaltyRecord,
   DeceasedAgentArchive,
+  EpisodicMemoryItem,
   GenealogyNodeItem,
+  GenerationalInterpretationItem,
   HeardEmissionItem,
   LivingAgentFull,
   ObservatorySnapshot,
+  RebirthRecordItem,
+  SpatialMemoryItem,
+  SurfaceArtifactItem,
+  WitnessAccountItem,
   WorldTerrainGrid,
 } from './types';
 
@@ -23,6 +32,10 @@ function asNumber(val: unknown, fallback = 0): number {
   return typeof val === 'number' && Number.isFinite(val) ? val : fallback;
 }
 
+function asNullableNumber(val: unknown): number | null {
+  return typeof val === 'number' && Number.isFinite(val) ? val : null;
+}
+
 function asString(val: unknown, fallback = ''): string {
   return typeof val === 'string' ? val : fallback;
 }
@@ -30,6 +43,63 @@ function asString(val: unknown, fallback = ''): string {
 function asNumberArray(val: unknown): number[] {
   if (!Array.isArray(val)) return [];
   return val.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+}
+
+function normalizeTraits(raw: unknown): AgentTraits {
+  const obj = isObject(raw) ? raw : {};
+  return {
+    boldness: asNumber(obj.boldness ?? obj.risk_tolerance, 0.5),
+    empathy: asNumber(obj.empathy, 0.5),
+    curiosity: asNumber(obj.curiosity, 0.5),
+    aggression: asNumber(obj.aggression, 0.3),
+    cooperation: asNumber(obj.cooperation ?? obj.sociability, 0.5),
+  };
+}
+
+function normalizeDeathPenalty(raw: unknown): DeathPenaltyRecord | null {
+  if (!isObject(raw)) return null;
+  return {
+    applied: Boolean(raw.applied),
+    cause: typeof raw.cause === 'string' ? raw.cause : undefined,
+    death_tick: asNullableNumber(raw.death_tick) ?? undefined,
+    perceived_cues: Array.isArray(raw.perceived_cues)
+      ? raw.perceived_cues.filter((c): c is string => typeof c === 'string')
+      : undefined,
+    evidence_count: asNullableNumber(raw.evidence_count) ?? undefined,
+    mean_advantage: asNullableNumber(raw.mean_advantage) ?? undefined,
+    loss_value: asNullableNumber(raw.loss_value) ?? undefined,
+    pre_weight_fingerprint:
+      typeof raw.pre_weight_fingerprint === 'string' ? raw.pre_weight_fingerprint : undefined,
+    post_weight_fingerprint:
+      typeof raw.post_weight_fingerprint === 'string' ? raw.post_weight_fingerprint : undefined,
+    note: typeof raw.note === 'string' ? raw.note : undefined,
+    medical_knowledge_added:
+      typeof raw.medical_knowledge_added === 'boolean' ? raw.medical_knowledge_added : undefined,
+  };
+}
+
+function normalizeEpisodicList(raw: unknown): EpisodicMemoryItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((e) => ({
+    tick: asNumber(e.tick),
+    event_type: asString(e.event_type ?? e.event_kind, 'event'),
+    other_agent_id: asNullableNumber(e.other_agent_id),
+    x: asNumber(e.x),
+    y: asNumber(e.y),
+    valence: asNumber(e.valence),
+    note: asString(e.note ?? e.detail),
+  }));
+}
+
+function normalizeSpatialList(raw: unknown): SpatialMemoryItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((s) => ({
+    x: asNumber(s.x),
+    y: asNumber(s.y),
+    resource_kind: asString(s.resource_kind ?? s.kind, 'resource'),
+    estimated_amount: asNumber(s.estimated_amount ?? s.richness),
+    last_seen_tick: asNumber(s.last_seen_tick),
+  }));
 }
 
 function sanitizeHeardEmissions(raw: unknown): HeardEmissionItem[] {
@@ -61,7 +131,7 @@ function normalizeLivingAgent(
   const ageYears = asNumber(raw.age_years);
   const lifeStage =
     asString(raw.life_stage) ||
-    (ageYears < 2 ? 'infant' : ageYears < 13 ? 'child' : ageYears < 55 ? 'adult' : 'elder');
+    (ageYears < 4 ? 'infant' : ageYears < 14 ? 'child' : ageYears < 48 ? 'adult' : 'elder');
 
   const rawLp = isObject(raw.local_perception) ? raw.local_perception : null;
   const visionRadius = rawLp ? Math.max(10, asNumber(rawLp.vision_radius_m, isNight ? 54 : 120)) : isNight ? 54 : 120;
@@ -82,7 +152,6 @@ function normalizeLivingAgent(
       .map((other) => asNumber(other.agent_id));
   }
 
-  const traitsObj = isObject(raw.traits) ? raw.traits : {};
   const invObj = isObject(raw.inventory) ? raw.inventory : {};
   const skillsObj = isObject(raw.skills) ? raw.skills : {};
   const lexObj = isObject(raw.lexicon) ? raw.lexicon : {};
@@ -105,8 +174,8 @@ function normalizeLivingAgent(
     y,
     birth_tick: asNumber(raw.birth_tick, gNode?.birth_tick ?? 0),
     generation: asNumber(raw.generation, 0),
-    parent_a_id: raw.parent_a_id !== undefined ? (raw.parent_a_id as number | null) : gNode?.parent_a_id ?? null,
-    parent_b_id: raw.parent_b_id !== undefined ? (raw.parent_b_id as number | null) : gNode?.parent_b_id ?? null,
+    parent_a_id: raw.parent_a_id !== undefined ? asNullableNumber(raw.parent_a_id) : gNode?.parent_a_id ?? null,
+    parent_b_id: raw.parent_b_id !== undefined ? asNullableNumber(raw.parent_b_id) : gNode?.parent_b_id ?? null,
     children_ids: Array.isArray(raw.children_ids)
       ? asNumberArray(raw.children_ids)
       : gNode?.children_ids ?? [],
@@ -122,40 +191,25 @@ function normalizeLivingAgent(
     disease_load: asNumber(raw.disease_load, 0),
     is_pregnant: Boolean(raw.is_pregnant),
     gestation_ticks: asNumber(raw.gestation_ticks, 0),
-    last_action: asString(raw.last_action, 'idle'),
-    last_emitted_token: typeof raw.last_emitted_token === 'number' ? raw.last_emitted_token : null,
-    traits: {
-      aggression: asNumber(traitsObj.aggression, 0.5),
-      curiosity: asNumber(traitsObj.curiosity, 0.5),
-      sociability: asNumber(traitsObj.sociability, 0.5),
-      risk_tolerance: asNumber(traitsObj.risk_tolerance, 0.5),
-      empathy: asNumber(traitsObj.empathy, 0.5),
-      endurance: asNumber(traitsObj.endurance, 0.5),
-    },
+    last_action: asString(raw.last_action, 'rest'),
+    last_emitted_token: asNullableNumber(raw.last_emitted_token),
+    carried_item: typeof raw.carried_item === 'string' ? raw.carried_item : null,
+    last_partner_id: asNullableNumber(raw.last_partner_id),
+    rebirth_count: asNumber(raw.rebirth_count, 0),
+    rebirth_tick: asNullableNumber(raw.rebirth_tick),
+    original_death_tick: asNullableNumber(raw.original_death_tick),
+    original_death_date: typeof raw.original_death_date === 'string' ? raw.original_death_date : null,
+    original_cause_of_death:
+      typeof raw.original_cause_of_death === 'string' ? raw.original_cause_of_death : null,
+    death_penalty_record: normalizeDeathPenalty(raw.death_penalty_record),
+    brain_fingerprint: typeof raw.brain_fingerprint === 'string' ? raw.brain_fingerprint : null,
+    traits: normalizeTraits(raw.traits),
     inventory: Object.fromEntries(Object.entries(invObj).map(([k, v]) => [k, asNumber(v)])),
     skills: Object.fromEntries(Object.entries(skillsObj).map(([k, v]) => [k, asNumber(v)])),
     lexicon_size: asNumber(raw.lexicon_size, Object.keys(normalizedLexicon).length),
     lexicon: normalizedLexicon,
-    episodic_memories: Array.isArray(raw.episodic_memories)
-      ? raw.episodic_memories.filter(isObject).map((e) => ({
-          tick: asNumber(e.tick),
-          event_type: asString(e.event_type),
-          other_agent_id: typeof e.other_agent_id === 'number' ? e.other_agent_id : null,
-          x: asNumber(e.x),
-          y: asNumber(e.y),
-          valence: asNumber(e.valence),
-          note: asString(e.note),
-        }))
-      : [],
-    spatial_memories: Array.isArray(raw.spatial_memories)
-      ? raw.spatial_memories.filter(isObject).map((s) => ({
-          x: asNumber(s.x),
-          y: asNumber(s.y),
-          resource_kind: asString(s.resource_kind),
-          estimated_amount: asNumber(s.estimated_amount),
-          last_seen_tick: asNumber(s.last_seen_tick),
-        }))
-      : [],
+    episodic_memories: normalizeEpisodicList(raw.episodic_memories),
+    spatial_memories: normalizeSpatialList(raw.spatial_memories),
     social_ties: Array.isArray(raw.social_ties)
       ? raw.social_ties.filter(isObject).map((t) => ({
           agent_id: asNumber(t.agent_id),
@@ -204,6 +258,99 @@ function normalizeTerrain(raw: unknown): WorldTerrainGrid | null {
   };
 }
 
+function normalizeWitnessAccounts(raw: unknown): WitnessAccountItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((w) => {
+    const distortion = asNumber(w.distortion_score, w.distorted ? 0.5 : 0);
+    return {
+      account_id: asNumber(w.account_id),
+      tick: asNumber(w.tick ?? w.tick_recorded),
+      witness_agent_id: asNumber(w.witness_agent_id ?? w.author_id),
+      subject_agent_ids: asNumberArray(w.subject_agent_ids ?? w.claimed_agent_ids),
+      perceived_type: asString(w.perceived_type ?? w.topic, 'observation'),
+      x: asNumber(w.x),
+      y: asNumber(w.y),
+      confidence: asNumber(w.confidence, 0.5),
+      distortion_score: distortion,
+      distorted: typeof w.distorted === 'boolean' ? w.distorted : distortion > 0.25,
+      artifact_id: asNullableNumber(w.artifact_id),
+      summary: asString(w.summary ?? w.narrative_summary),
+    };
+  });
+}
+
+function normalizeSurfaceArtifacts(raw: unknown): SurfaceArtifactItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((a) => ({
+    artifact_id: asNumber(a.artifact_id),
+    created_tick: asNumber(a.created_tick ?? a.tick_created),
+    author_agent_id: asNumber(a.author_agent_id ?? a.creator_id),
+    x: asNumber(a.x),
+    y: asNumber(a.y),
+    artifact_kind: asString(a.artifact_kind ?? a.medium, 'earth_mark'),
+    symbol_tokens: asNumberArray(a.symbol_tokens),
+    topic: asString(a.topic ?? a.intended_topic, 'record'),
+    integrity: asNumber(a.integrity ?? a.durability, 0.5),
+  }));
+}
+
+function normalizeGenerationalInterpretations(raw: unknown): GenerationalInterpretationItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((it) => {
+    const srcArr = asNumberArray(it.source_artifact_ids);
+    const srcSingle = asNullableNumber(it.source_artifact_id);
+    return {
+      interpretation_id: asNumber(it.interpretation_id),
+      tick: asNumber(it.tick ?? it.tick_formed),
+      generation: asNumber(it.generation ?? it.generation_depth, 1),
+      interpreter_agent_id: asNumber(it.interpreter_agent_id ?? it.interpreter_id),
+      source_artifact_id: srcSingle ?? (srcArr.length > 0 ? srcArr[0] : null),
+      inferred_topic: asString(it.inferred_topic, ''),
+      belief_narrative: asString(it.belief_narrative ?? it.summary),
+      accuracy_estimate: asNumber(it.accuracy_estimate ?? it.accuracy_vs_reality, 0),
+      belief_confidence: asNumber(it.belief_confidence, 0.5),
+      is_revisionist: Boolean(it.is_revisionist),
+    };
+  });
+}
+
+function normalizeCrimeRecords(raw: unknown): CrimeRecordItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((c) => ({
+    crime_id: asNumber(c.crime_id),
+    tick: asNumber(c.tick),
+    crime_type: asString(c.crime_type, 'crime'),
+    perpetrator_id: asNumber(c.perpetrator_id),
+    victim_id: asNullableNumber(c.victim_id),
+    x: asNumber(c.x),
+    y: asNumber(c.y),
+    known_to_society: Boolean(c.known_to_society),
+    punished: typeof c.punished === 'boolean' ? c.punished : Boolean(c.resolved),
+    resolution_type: typeof c.resolution_type === 'string' ? c.resolution_type : null,
+  }));
+}
+
+function normalizeRebirthRecords(raw: unknown): RebirthRecordItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(isObject).map((r) => ({
+    agent_id: asNumber(r.agent_id),
+    generation: asNumber(r.generation, 0),
+    birth_tick: asNumber(r.birth_tick, 0),
+    original_death_tick: asNullableNumber(r.original_death_tick),
+    original_cause_of_death:
+      typeof r.original_cause_of_death === 'string' ? r.original_cause_of_death : null,
+    rebirth_tick: asNumber(r.rebirth_tick, 0),
+    rebirth_date: asString(r.rebirth_date),
+    rebirth_count: asNumber(r.rebirth_count, 1),
+    preserved_age_ticks: asNumber(r.preserved_age_ticks, 0),
+    brain_fingerprint: asString(r.brain_fingerprint),
+    episodic_memories_kept: asNumber(r.episodic_memories_kept, 0),
+    spatial_memories_kept: asNumber(r.spatial_memories_kept, 0),
+    death_penalty_applied: Boolean(r.death_penalty_applied),
+    death_penalty_record: normalizeDeathPenalty(r.death_penalty_record),
+  }));
+}
+
 export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapshot {
   if (!isObject(input)) {
     throw new SnapshotValidationError('Snapshot JSON must be an object.');
@@ -222,11 +369,11 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
     ? input.genealogy_nodes.filter(isObject).map((g) => ({
         agent_id: asNumber(g.agent_id),
         birth_tick: asNumber(g.birth_tick),
-        death_tick: typeof g.death_tick === 'number' ? g.death_tick : null,
+        death_tick: asNullableNumber(g.death_tick),
         is_alive: Boolean(g.is_alive),
         cause_of_death: typeof g.cause_of_death === 'string' ? g.cause_of_death : null,
-        parent_a_id: typeof g.parent_a_id === 'number' ? g.parent_a_id : null,
-        parent_b_id: typeof g.parent_b_id === 'number' ? g.parent_b_id : null,
+        parent_a_id: asNullableNumber(g.parent_a_id),
+        parent_b_id: asNullableNumber(g.parent_b_id),
         children_ids: asNumberArray(g.children_ids),
       }))
     : [];
@@ -245,7 +392,6 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
   let deceasedArchive: DeceasedAgentArchive[];
   if (Array.isArray(input.deceased_agents_archive)) {
     deceasedArchive = input.deceased_agents_archive.filter(isObject).map((d) => {
-      const traitsObj = isObject(d.traits) ? d.traits : {};
       const skillsObj = isObject(d.skills) ? d.skills : {};
       return {
         agent_id: asNumber(d.agent_id),
@@ -253,32 +399,36 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
         x: asNumber(d.x),
         y: asNumber(d.y),
         birth_tick: asNumber(d.birth_tick),
-        death_tick: typeof d.death_tick === 'number' ? d.death_tick : null,
+        death_tick: asNullableNumber(d.death_tick),
         cause_of_death: typeof d.cause_of_death === 'string' ? d.cause_of_death : null,
         age_ticks: asNumber(d.age_ticks),
         age_years: asNumber(d.age_years),
         life_stage: asString(d.life_stage, 'adult'),
         generation: asNumber(d.generation),
-        parent_a_id: typeof d.parent_a_id === 'number' ? d.parent_a_id : null,
-        parent_b_id: typeof d.parent_b_id === 'number' ? d.parent_b_id : null,
+        parent_a_id: asNullableNumber(d.parent_a_id),
+        parent_b_id: asNullableNumber(d.parent_b_id),
         children_ids: asNumberArray(d.children_ids),
         is_alive: false,
-        last_action: asString(d.last_action, 'idle'),
-        traits: {
-          aggression: asNumber(traitsObj.aggression, 0.5),
-          curiosity: asNumber(traitsObj.curiosity, 0.5),
-          sociability: asNumber(traitsObj.sociability, 0.5),
-          risk_tolerance: asNumber(traitsObj.risk_tolerance, 0.5),
-          empathy: asNumber(traitsObj.empathy, 0.5),
-          endurance: asNumber(traitsObj.endurance, 0.5),
-        },
+        last_action: asString(d.last_action, 'rest'),
+        rebirth_count: asNumber(d.rebirth_count, 0),
+        rebirth_tick: asNullableNumber(d.rebirth_tick),
+        original_death_tick: asNullableNumber(d.original_death_tick),
+        original_death_date:
+          typeof d.original_death_date === 'string' ? d.original_death_date : null,
+        original_cause_of_death:
+          typeof d.original_cause_of_death === 'string' ? d.original_cause_of_death : null,
+        death_penalty_record: normalizeDeathPenalty(d.death_penalty_record),
+        brain_fingerprint: typeof d.brain_fingerprint === 'string' ? d.brain_fingerprint : null,
+        traits: normalizeTraits(d.traits),
         skills: Object.fromEntries(Object.entries(skillsObj).map(([k, v]) => [k, asNumber(v)])),
         lexicon_size: asNumber(d.lexicon_size),
-        episodic_memories: Array.isArray(d.episodic_memories)
-          ? (d.episodic_memories.filter(isObject) as unknown as DeceasedAgentArchive['episodic_memories'])
-          : [],
+        episodic_memories: normalizeEpisodicList(d.episodic_memories),
         social_ties: Array.isArray(d.social_ties)
-          ? (d.social_ties.filter(isObject) as unknown as DeceasedAgentArchive['social_ties'])
+          ? d.social_ties.filter(isObject).map((t) => ({
+              agent_id: asNumber(t.agent_id),
+              familiarity: asNumber(t.familiarity),
+              trust: asNumber(t.trust),
+            }))
           : [],
       };
     });
@@ -302,14 +452,20 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
         parent_b_id: g.parent_b_id,
         children_ids: g.children_ids,
         is_alive: false,
-        last_action: 'idle',
+        last_action: 'rest',
+        rebirth_count: 0,
+        rebirth_tick: null,
+        original_death_tick: null,
+        original_death_date: null,
+        original_cause_of_death: null,
+        death_penalty_record: null,
+        brain_fingerprint: null,
         traits: {
-          aggression: 0.5,
-          curiosity: 0.5,
-          sociability: 0.5,
-          risk_tolerance: 0.5,
+          boldness: 0.5,
           empathy: 0.5,
-          endurance: 0.5,
+          curiosity: 0.5,
+          aggression: 0.3,
+          cooperation: 0.5,
         },
         skills: {},
         lexicon_size: 0,
@@ -338,6 +494,12 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
     export_schema_version: asString(input.export_schema_version, '1.0.0'),
     exported_at_utc: asString(input.exported_at_utc, new Date().toISOString()),
     world_id: input.world_id,
+    timeline_id: asString(input.timeline_id, input.world_id),
+    parent_timeline_id:
+      typeof input.parent_timeline_id === 'string' ? input.parent_timeline_id : null,
+    timeline_kind: asString(input.timeline_kind, 'original'),
+    branch_point_tick: asNullableNumber(input.branch_point_tick),
+    rebirth_records: normalizeRebirthRecords(input.rebirth_records),
     backend: asString(input.backend, 'unknown'),
     clock: {
       tick: asNumber(clockObj.tick),
@@ -397,18 +559,12 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
         : [],
     },
     emergent_language: {
-      first_communication_tick:
-        typeof langObj.first_communication_tick === 'number' ? langObj.first_communication_tick : null,
-      first_repeated_signal_tick:
-        typeof langObj.first_repeated_signal_tick === 'number' ? langObj.first_repeated_signal_tick : null,
-      first_shared_symbol_tick:
-        typeof langObj.first_shared_symbol_tick === 'number' ? langObj.first_shared_symbol_tick : null,
-      first_stable_protoword_tick:
-        typeof langObj.first_stable_protoword_tick === 'number' ? langObj.first_stable_protoword_tick : null,
-      first_grammar_sequence_tick:
-        typeof langObj.first_grammar_sequence_tick === 'number' ? langObj.first_grammar_sequence_tick : null,
-      first_dialect_divergence_tick:
-        typeof langObj.first_dialect_divergence_tick === 'number' ? langObj.first_dialect_divergence_tick : null,
+      first_communication_tick: asNullableNumber(langObj.first_communication_tick),
+      first_repeated_signal_tick: asNullableNumber(langObj.first_repeated_signal_tick),
+      first_shared_symbol_tick: asNullableNumber(langObj.first_shared_symbol_tick),
+      first_stable_protoword_tick: asNullableNumber(langObj.first_stable_protoword_tick),
+      first_grammar_sequence_tick: asNullableNumber(langObj.first_grammar_sequence_tick),
+      first_dialect_divergence_tick: asNullableNumber(langObj.first_dialect_divergence_tick),
       stable_protowords_count: asNumber(langObj.stable_protowords_count),
       stable_protowords: isObject(langObj.stable_protowords)
         ? (langObj.stable_protowords as Record<string, string>)
@@ -438,18 +594,15 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
       disputes_resolved: asNumber(crimeObj.disputes_resolved),
       dispute_resolution_rate: asNumber(crimeObj.dispute_resolution_rate),
       social_trust_index: asNumber(crimeObj.social_trust_index),
-      stability_index: typeof crimeObj.stability_index === 'number' ? crimeObj.stability_index : null,
+      stability_index: asNullableNumber(crimeObj.stability_index),
       sufficient_observation_window: Boolean(crimeObj.sufficient_observation_window),
-      last_crime_tick: typeof crimeObj.last_crime_tick === 'number' ? crimeObj.last_crime_tick : null,
-      ticks_since_last_crime:
-        typeof crimeObj.ticks_since_last_crime === 'number' ? crimeObj.ticks_since_last_crime : null,
+      last_crime_tick: asNullableNumber(crimeObj.last_crime_tick),
+      ticks_since_last_crime: asNullableNumber(crimeObj.ticks_since_last_crime),
       active_groups: asNumber(crimeObj.active_groups),
       total_barters: asNumber(crimeObj.total_barters),
       emergent_markets: asNumber(crimeObj.emergent_markets),
       collapsed_institutions: asNumber(crimeObj.collapsed_institutions),
-      recent_crimes: Array.isArray(crimeObj.recent_crimes)
-        ? (crimeObj.recent_crimes.filter(isObject) as unknown as ObservatorySnapshot['crime_and_stability']['recent_crimes'])
-        : [],
+      recent_crimes: normalizeCrimeRecords(crimeObj.recent_crimes),
       exchange_hubs: exchangeHubs,
     },
     groups: Array.isArray(input.groups)
@@ -463,12 +616,12 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
             group_id: asNumber(g.group_id),
             founded_tick: asNumber(g.founded_tick),
             member_ids: Array.from(new Set(asNumberArray(g.member_ids))),
-            leader_id: typeof g.leader_id === 'number' ? g.leader_id : null,
+            leader_id: asNullableNumber(g.leader_id),
             governance_type: asString(g.governance_type, 'informal'),
             norm_rules: rawNorms.filter((n): n is string => typeof n === 'string'),
             has_currency_token: Boolean(g.has_currency_token),
-            last_election_tick: typeof g.last_election_tick === 'number' ? g.last_election_tick : null,
-            next_election_tick: typeof g.next_election_tick === 'number' ? g.next_election_tick : null,
+            last_election_tick: asNullableNumber(g.last_election_tick),
+            next_election_tick: asNullableNumber(g.next_election_tick),
             active: typeof g.active === 'boolean' ? g.active : true,
           };
         })
@@ -476,7 +629,7 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
     history_layers: {
       milestones: isObject(histObj.milestones)
         ? Object.fromEntries(
-            Object.entries(histObj.milestones).map(([k, v]) => [k, typeof v === 'number' ? v : null]),
+            Object.entries(histObj.milestones).map(([k, v]) => [k, asNullableNumber(v)]),
           )
         : {},
       layer_1_ground_truth_tail: Array.isArray(histObj.layer_1_ground_truth_tail)
@@ -489,25 +642,17 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
             x: asNumber(ev.x),
             y: asNumber(ev.y),
             description: asString(ev.description),
+            source: typeof ev.source === 'string' ? ev.source : undefined,
+            certainty: typeof ev.certainty === 'number' ? ev.certainty : undefined,
             metadata: isObject(ev.metadata) ? ev.metadata : undefined,
           }))
         : [],
-      layer_2_witness_accounts_tail: Array.isArray(histObj.layer_2_witness_accounts_tail)
-        ? (histObj.layer_2_witness_accounts_tail.filter(
-            isObject,
-          ) as unknown as ObservatorySnapshot['history_layers']['layer_2_witness_accounts_tail'])
-        : [],
+      layer_2_witness_accounts_tail: normalizeWitnessAccounts(histObj.layer_2_witness_accounts_tail),
       layer_2_surface_artifacts_count: asNumber(histObj.layer_2_surface_artifacts_count),
-      layer_2_surface_artifacts: Array.isArray(histObj.layer_2_surface_artifacts)
-        ? (histObj.layer_2_surface_artifacts.filter(
-            isObject,
-          ) as unknown as ObservatorySnapshot['history_layers']['layer_2_surface_artifacts'])
-        : [],
-      layer_3_interpretations_tail: Array.isArray(histObj.layer_3_interpretations_tail)
-        ? (histObj.layer_3_interpretations_tail.filter(
-            isObject,
-          ) as unknown as ObservatorySnapshot['history_layers']['layer_3_interpretations_tail'])
-        : [],
+      layer_2_surface_artifacts: normalizeSurfaceArtifacts(histObj.layer_2_surface_artifacts),
+      layer_3_interpretations_tail: normalizeGenerationalInterpretations(
+        histObj.layer_3_interpretations_tail,
+      ),
     },
     living_agents_full: livingAgentsFull,
     deceased_agents_archive: deceasedArchive,

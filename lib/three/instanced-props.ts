@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type {
   ExchangeHubItem,
+  QualityPreset,
   SurfaceArtifactItem,
   WorldTerrainGrid,
 } from '../observatory/types';
@@ -37,17 +38,28 @@ export interface PropsBundle {
   dispose: () => void;
 }
 
+const QUALITY_BUDGETS: Record<
+  QualityPreset,
+  {trees: number; food: number; herbs: number; stones: number; reeds: number; shadows: boolean; doubleTrees: boolean}
+> = {
+  low: {trees: 450, food: 320, herbs: 140, stones: 160, reeds: 160, shadows: false, doubleTrees: false},
+  medium: {trees: 1050, food: 750, herbs: 350, stones: 380, reeds: 420, shadows: true, doubleTrees: false},
+  high: {trees: 1850, food: 1300, herbs: 600, stones: 650, reeds: 750, shadows: true, doubleTrees: true},
+  ultra: {trees: 2600, food: 1800, herbs: 850, stones: 900, reeds: 1000, shadows: true, doubleTrees: true},
+};
+
 export function buildWorldProps(
   terrain: WorldTerrainGrid | null,
   artifacts: SurfaceArtifactItem[],
   exchangeHubs: ExchangeHubItem[],
   hasShelterMilestone: boolean,
   season: string,
-  highQuality: boolean,
+  quality: QualityPreset,
 ): PropsBundle {
   const group = new THREE.Group();
   const disposables: Array<{dispose: () => void}> = [];
   const artifactMeshes = new Map<number, THREE.Object3D>();
+  const budget = QUALITY_BUDGETS[quality] ?? QUALITY_BUDGETS.high;
 
   if (terrain) {
     const {cols, rows, width_m: wM, height_m: hM, cell_size_m: cellM} = terrain;
@@ -57,11 +69,12 @@ export function buildWorldProps(
     const stoneTransforms: Array<{x: number; y: number; z: number; sx: number; sy: number; sz: number; rot: number; tint: number}> = [];
     const reedTransforms: Array<{x: number; y: number; z: number; s: number; rot: number}> = [];
 
-    const maxTrees = highQuality ? 1850 : 700;
-    const maxFood = highQuality ? 1300 : 520;
-    const maxHerbs = highQuality ? 600 : 240;
-    const maxStones = highQuality ? 650 : 260;
-    const maxReeds = highQuality ? 750 : 280;
+    const maxTrees = budget.trees;
+    const maxFood = budget.food;
+    const maxHerbs = budget.herbs;
+    const maxStones = budget.stones;
+    const maxReeds = budget.reeds;
+    const foodModulo = quality === 'low' ? 3 : quality === 'medium' ? 2 : 1;
 
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
@@ -70,7 +83,6 @@ export function buildWorldProps(
         const baseX = (c + 0.5) * cellM;
         const baseY = (r + 0.5) * cellM;
 
-        // Waterside reed clusters in shallow shore zones
         if (water > 3 && water <= 16 && reedTransforms.length < maxReeds) {
           const sx = baseX + (seededUnit(idx, 41) - 0.5) * cellM * 0.7;
           const sy = baseY + (seededUnit(idx, 42) - 0.5) * cellM * 0.7;
@@ -89,7 +101,7 @@ export function buildWorldProps(
 
         const wood = terrain.wood_flora[idx] ?? 0;
         if (wood > 5.5 && treeTransforms.length < maxTrees) {
-          const count = wood > 22 && highQuality ? 2 : 1;
+          const count = wood > 22 && budget.doubleTrees ? 2 : 1;
           for (let k = 0; k < count; k++) {
             const ox = (seededUnit(idx, 1 + k) - 0.5) * cellM * 0.85;
             const oy = (seededUnit(idx, 2 + k) - 0.5) * cellM * 0.85;
@@ -110,7 +122,7 @@ export function buildWorldProps(
         }
 
         const food = terrain.food_flora[idx] ?? 0;
-        if (food > 4.5 && foodTransforms.length < maxFood && (idx % (highQuality ? 2 : 3) === 0)) {
+        if (food > 4.5 && foodTransforms.length < maxFood && (idx % foodModulo === 0)) {
           const ox = (seededUnit(idx, 4) - 0.5) * cellM * 0.78;
           const oy = (seededUnit(idx, 5) - 0.5) * cellM * 0.78;
           const sx = Math.max(5, Math.min(wM - 5, baseX + ox));
@@ -163,7 +175,6 @@ export function buildWorldProps(
       }
     }
 
-    // 1. Multi-tier Organic Trees (tapered trunk + 2 irregular foliage crowns with natural color variation)
     if (treeTransforms.length > 0) {
       const trunkGeo = new THREE.CylinderGeometry(0.32, 0.72, 5.8, 7);
       trunkGeo.translate(0, 2.8, 0);
@@ -188,10 +199,10 @@ export function buildWorldProps(
       const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, treeTransforms.length);
       const lowerCrowns = new THREE.InstancedMesh(lowerCrownGeo, canopyMat, treeTransforms.length);
       const upperCrowns = new THREE.InstancedMesh(upperCrownGeo, canopyMat, treeTransforms.length);
-      trunks.castShadow = highQuality;
-      lowerCrowns.castShadow = highQuality;
-      upperCrowns.castShadow = highQuality;
-      lowerCrowns.receiveShadow = highQuality;
+      trunks.castShadow = budget.shadows;
+      lowerCrowns.castShadow = budget.shadows;
+      upperCrowns.castShadow = budget.shadows;
+      lowerCrowns.receiveShadow = budget.shadows;
 
       treeTransforms.forEach((t, i) => {
         _euler.set(0, t.rot, 0);
@@ -228,7 +239,6 @@ export function buildWorldProps(
       disposables.push(trunkGeo, trunkMat, lowerCrownGeo, upperCrownGeo, canopyMat);
     }
 
-    // 2. Organic Berry / Food Shrubs
     if (foodTransforms.length > 0) {
       const bushGeo = new THREE.IcosahedronGeometry(1.55, 1);
       jitterGeometry(bushGeo, 0.24, 11);
@@ -240,7 +250,7 @@ export function buildWorldProps(
         roughness: 0.88,
       });
       const bushes = new THREE.InstancedMesh(bushGeo, bushMat, foodTransforms.length);
-      bushes.castShadow = highQuality;
+      bushes.castShadow = budget.shadows;
 
       foodTransforms.forEach((b, i) => {
         _euler.set(0, b.rot, 0);
@@ -264,7 +274,6 @@ export function buildWorldProps(
       disposables.push(bushGeo, bushMat);
     }
 
-    // 3. Medicinal Herbs & Waterside Reeds
     if (herbTransforms.length > 0) {
       const herbGeo = new THREE.ConeGeometry(0.85, 1.6, 5);
       jitterGeometry(herbGeo, 0.16, 17);
@@ -304,7 +313,6 @@ export function buildWorldProps(
       disposables.push(reedGeo, reedMat);
     }
 
-    // 4. Stratified Natural Rock Outcrops
     if (stoneTransforms.length > 0) {
       const stoneGeo = new THREE.DodecahedronGeometry(2.15, 0);
       jitterGeometry(stoneGeo, 0.26, 29);
@@ -316,8 +324,8 @@ export function buildWorldProps(
         flatShading: true,
       });
       const stones = new THREE.InstancedMesh(stoneGeo, stoneMat, stoneTransforms.length);
-      stones.castShadow = highQuality;
-      stones.receiveShadow = highQuality;
+      stones.castShadow = budget.shadows;
+      stones.receiveShadow = budget.shadows;
       stoneTransforms.forEach((st, i) => {
         _euler.set(st.tint * 0.25, st.rot, 0);
         _quat.setFromEuler(_euler);
@@ -343,6 +351,8 @@ export function buildWorldProps(
 
   const steleGeo = new THREE.BoxGeometry(1.35, 3.1, 0.52);
   steleGeo.translate(0, 1.55, 0);
+  const tabletGeo = new THREE.BoxGeometry(1.6, 2.2, 0.35);
+  tabletGeo.translate(0, 1.1, 0);
   const earthMarkGeo = new THREE.CylinderGeometry(1.7, 1.9, 0.35, 10);
   earthMarkGeo.translate(0, 0.18, 0);
   const carvingMat = new THREE.MeshStandardMaterial({
@@ -351,28 +361,43 @@ export function buildWorldProps(
     emissiveIntensity: 0.3,
     roughness: 0.78,
   });
+  const tabletMat = new THREE.MeshStandardMaterial({
+    color: '#c9a66b',
+    emissive: '#3b2e16',
+    emissiveIntensity: 0.22,
+    roughness: 0.84,
+  });
   const markMat = new THREE.MeshStandardMaterial({
     color: '#a87039',
     roughness: 0.92,
   });
-  disposables.push(steleGeo, earthMarkGeo, carvingMat, markMat);
+  disposables.push(steleGeo, tabletGeo, earthMarkGeo, carvingMat, tabletMat, markMat);
 
   for (const art of artifacts) {
     const {wx, wz} = simToWorldXZ(art.x, art.y, wM, hM);
     const wy = sampleElevationY(terrain, art.x, art.y);
-    const mesh = new THREE.Mesh(
-      art.artifact_kind === 'earth_mark' ? earthMarkGeo : steleGeo,
-      art.artifact_kind === 'earth_mark' ? markMat : carvingMat,
-    );
+    const geo =
+      art.artifact_kind === 'earth_mark'
+        ? earthMarkGeo
+        : art.artifact_kind === 'tablet'
+          ? tabletGeo
+          : steleGeo;
+    const mat =
+      art.artifact_kind === 'earth_mark'
+        ? markMat
+        : art.artifact_kind === 'tablet'
+          ? tabletMat
+          : carvingMat;
+    const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(wx, wy, wz);
     mesh.rotation.y = (art.artifact_id * 0.9) % (Math.PI * 2);
-    mesh.castShadow = highQuality;
+    mesh.castShadow = budget.shadows;
     mesh.userData = {kind: 'artifact', artifactId: art.artifact_id};
     group.add(mesh);
     artifactMeshes.set(art.artifact_id, mesh);
   }
 
-  // Authentic Exchange / Market Hubs (hearth stone ring + timber totem post — zero fabricated buildings)
+  // Authentic Exchange / Market Hubs
   if (exchangeHubs.length > 0) {
     const ringGeo = new THREE.RingGeometry(9.5, 11.4, 24);
     ringGeo.rotateX(-Math.PI / 2);
@@ -399,7 +424,7 @@ export function buildWorldProps(
       hubGrp.add(ring);
       if (hub.is_market) {
         const post = new THREE.Mesh(postGeo, postMat);
-        post.castShadow = highQuality;
+        post.castShadow = budget.shadows;
         hubGrp.add(post);
       }
       group.add(hubGrp);

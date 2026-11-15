@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type {WeatherStateData, WorldTerrainGrid} from '../observatory/types';
+import type {QualityPreset, WeatherStateData, WorldTerrainGrid} from '../observatory/types';
 
 export const ELEVATION_SCALE = 1.65;
 
@@ -193,7 +193,7 @@ export interface TerrainBundle {
 export function buildTerrainGroup(
   terrain: WorldTerrainGrid | null,
   season: string,
-  highQuality: boolean,
+  quality: QualityPreset,
 ): TerrainBundle {
   const group = new THREE.Group();
   const widthM = terrain?.width_m ?? 2500;
@@ -201,9 +201,23 @@ export function buildTerrainGroup(
   const cols = terrain?.cols ?? 100;
   const rows = terrain?.rows ?? 80;
 
-  // Higher geometric subdivision in High quality for smooth organic ridges & shorelines
-  const segX = highQuality ? Math.min(220, (cols - 1) * 2) : cols - 1;
-  const segZ = highQuality ? Math.min(176, (rows - 1) * 2) : rows - 1;
+  // Quality-scaled terrain subdivision for balanced vertex budgets vs ridge fidelity
+  const segX =
+    quality === 'ultra'
+      ? Math.min(240, Math.round((cols - 1) * 2.4))
+      : quality === 'high'
+        ? Math.min(200, (cols - 1) * 2)
+        : quality === 'medium'
+          ? cols - 1
+          : Math.max(64, Math.round((cols - 1) * 0.75));
+  const segZ =
+    quality === 'ultra'
+      ? Math.min(192, Math.round((rows - 1) * 2.4))
+      : quality === 'high'
+        ? Math.min(160, (rows - 1) * 2)
+        : quality === 'medium'
+          ? rows - 1
+          : Math.max(52, Math.round((rows - 1) * 0.75));
 
   const geo = new THREE.PlaneGeometry(widthM, heightM, segX, segZ);
   geo.rotateX(-Math.PI / 2);
@@ -313,13 +327,13 @@ export function buildTerrainGroup(
     vertexColors: true,
     map: textures.albedoTex,
     bumpMap: textures.bumpTex,
-    bumpScale: highQuality ? 1.35 : 0.6,
+    bumpScale: quality === 'low' ? 0.5 : quality === 'medium' ? 0.9 : 1.35,
     roughness: 0.91,
     metalness: 0.02,
   });
 
   const terrainMesh = new THREE.Mesh(geo, terrainMat);
-  terrainMesh.receiveShadow = highQuality;
+  terrainMesh.receiveShadow = quality !== 'low';
   terrainMesh.name = 'terrain_surface';
   group.add(terrainMesh);
 
@@ -360,7 +374,7 @@ export function buildTerrainGroup(
     opacity: 0.86,
   });
   const waterMesh = new THREE.Mesh(waterGeo, waterMat);
-  waterMesh.receiveShadow = highQuality;
+  waterMesh.receiveShadow = quality !== 'low';
   waterMesh.name = 'water_bodies';
   group.add(waterMesh);
 
@@ -414,14 +428,21 @@ export interface AtmosphereRig {
   dispose: () => void;
 }
 
-export function createAtmosphereRig(scene: THREE.Scene, highQuality: boolean): AtmosphereRig {
+export function createAtmosphereRig(
+  scene: THREE.Scene,
+  quality: QualityPreset,
+  shadowsAllowed = true,
+): AtmosphereRig {
   const hemi = new THREE.HemisphereLight('#b8d6f5', '#3d3326', 0.92);
   scene.add(hemi);
 
+  const castShadows = shadowsAllowed && quality !== 'low';
+  const shadowSize = quality === 'medium' ? 1024 : 2048;
+
   const sun = new THREE.DirectionalLight('#fff0d1', 1.85);
   sun.position.set(780, 960, 520);
-  sun.castShadow = highQuality;
-  sun.shadow.mapSize.set(highQuality ? 2048 : 512, highQuality ? 2048 : 512);
+  sun.castShadow = castShadows;
+  sun.shadow.mapSize.set(shadowSize, shadowSize);
   sun.shadow.camera.near = 100;
   sun.shadow.camera.far = 3400;
   const d = 1450;
@@ -487,7 +508,8 @@ export function createAtmosphereRig(scene: THREE.Scene, highQuality: boolean): A
     opacity: 0.72,
     fog: false,
   });
-  const cloudCount = highQuality ? 18 : 8;
+  const cloudCount =
+    quality === 'ultra' ? 24 : quality === 'high' ? 16 : quality === 'medium' ? 10 : 4;
   for (let i = 0; i < cloudCount; i++) {
     const cluster = new THREE.Group();
     const cx = (hash2D(i, 11) - 0.5) * 2800;
@@ -507,7 +529,8 @@ export function createAtmosphereRig(scene: THREE.Scene, highQuality: boolean): A
   scene.add(cloudsGroup);
 
   // Atmospheric rain particles (toggled during rain/storm/flood)
-  const rainCount = highQuality ? 1600 : 600;
+  const rainCount =
+    quality === 'ultra' ? 2400 : quality === 'high' ? 1600 : quality === 'medium' ? 900 : 350;
   const rainPos = new Float32Array(rainCount * 3);
   for (let i = 0; i < rainCount; i++) {
     rainPos[i * 3] = (hash2D(i, 51) - 0.5) * 2400;

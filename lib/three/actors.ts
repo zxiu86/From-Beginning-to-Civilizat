@@ -3,6 +3,7 @@ import type {
   DeceasedAgentArchive,
   FaunaData,
   LivingAgentFull,
+  QualityPreset,
   WorldTerrainGrid,
 } from '../observatory/types';
 import {sampleElevationY, simToWorldXZ} from './terrain';
@@ -16,6 +17,9 @@ interface SharedResources {
   armGeo: THREE.CylinderGeometry;
   legGeo: THREE.CylinderGeometry;
   bellyGeo: THREE.SphereGeometry;
+  carriedItemGeo: THREE.BoxGeometry;
+  midProxyGeo: THREE.CapsuleGeometry;
+  farDotGeo: THREE.SphereGeometry;
   shadowDiscGeo: THREE.CircleGeometry;
   hitProxyGeo: THREE.CylinderGeometry;
   ringGeo: THREE.RingGeometry;
@@ -40,6 +44,9 @@ interface SharedResources {
   tunicHealthyM: THREE.MeshStandardMaterial;
   tunicStrained: THREE.MeshStandardMaterial;
   tunicCritical: THREE.MeshStandardMaterial;
+  carriedItemMats: Record<string, THREE.MeshStandardMaterial>;
+  farDotHealthyMat: THREE.MeshBasicMaterial;
+  farDotStrainedMat: THREE.MeshBasicMaterial;
   sashMat: THREE.MeshStandardMaterial;
   limbMat: THREE.MeshStandardMaterial;
   voiceRingMat: THREE.MeshBasicMaterial;
@@ -59,6 +66,11 @@ function createSharedResources(): SharedResources {
   const armGeo = new THREE.CylinderGeometry(0.18, 0.14, 1.48, 8);
   const legGeo = new THREE.CylinderGeometry(0.22, 0.16, 1.52, 8);
   const bellyGeo = new THREE.SphereGeometry(0.56, 10, 8);
+  const carriedItemGeo = new THREE.BoxGeometry(0.46, 0.46, 0.46);
+  const midProxyGeo = new THREE.CapsuleGeometry(0.58, 2.2, 4, 6);
+  midProxyGeo.translate(0, 1.9, 0);
+  const farDotGeo = new THREE.SphereGeometry(1.15, 6, 4);
+  farDotGeo.translate(0, 2.2, 0);
 
   const shadowDiscGeo = new THREE.CircleGeometry(1.15, 16);
   shadowDiscGeo.rotateX(-Math.PI / 2);
@@ -95,6 +107,9 @@ function createSharedResources(): SharedResources {
     armGeo,
     legGeo,
     bellyGeo,
+    carriedItemGeo,
+    midProxyGeo,
+    farDotGeo,
     shadowDiscGeo,
     hitProxyGeo,
     ringGeo,
@@ -128,6 +143,15 @@ function createSharedResources(): SharedResources {
     tunicHealthyM: new THREE.MeshStandardMaterial({color: '#467d4e', roughness: 0.84}),
     tunicStrained: new THREE.MeshStandardMaterial({color: '#d99b26', roughness: 0.8}),
     tunicCritical: new THREE.MeshStandardMaterial({color: '#cf4842', roughness: 0.78}),
+    carriedItemMats: {
+      food: new THREE.MeshStandardMaterial({color: '#7ab344', roughness: 0.8}),
+      wood: new THREE.MeshStandardMaterial({color: '#704a2b', roughness: 0.92}),
+      stone: new THREE.MeshStandardMaterial({color: '#889099', roughness: 0.9}),
+      herb: new THREE.MeshStandardMaterial({color: '#2d9e77', roughness: 0.8}),
+      tool: new THREE.MeshStandardMaterial({color: '#d99b26', roughness: 0.65, metalness: 0.2}),
+    },
+    farDotHealthyMat: new THREE.MeshBasicMaterial({color: '#63b8c9'}),
+    farDotStrainedMat: new THREE.MeshBasicMaterial({color: '#d99b26'}),
     sashMat: new THREE.MeshStandardMaterial({color: '#4e3928', roughness: 0.9}),
     limbMat: new THREE.MeshStandardMaterial({color: '#342c26', roughness: 0.88}),
     voiceRingMat: new THREE.MeshBasicMaterial({
@@ -158,6 +182,8 @@ export interface LivingActorHandle {
   agentId: number;
   root: THREE.Group;
   bodyPivot: THREE.Group;
+  midProxyMesh: THREE.Mesh;
+  farDotMesh: THREE.Mesh;
   hairMesh: THREE.Mesh;
   torsoMesh: THREE.Mesh;
   leftArm: THREE.Mesh;
@@ -165,15 +191,22 @@ export interface LivingActorHandle {
   leftLeg: THREE.Mesh;
   rightLeg: THREE.Mesh;
   bellyMesh: THREE.Mesh;
+  carriedMesh: THREE.Mesh;
   voiceRing: THREE.Mesh;
   selectRing: THREE.Mesh;
   replayRing: THREE.Mesh;
   hitMesh: THREE.Mesh;
   lastAction: string;
+  lastPartnerId: number | null;
   phase: number;
   baseScale: number;
+  isFpvSelfHidden: boolean;
   targetPos: THREE.Vector3;
 }
+
+const _frustum = new THREE.Frustum();
+const _projScreenMatrix = new THREE.Matrix4();
+const _actorSphere = new THREE.Sphere(new THREE.Vector3(), 6);
 
 export class ActorsManager {
   public readonly livingGroup = new THREE.Group();
@@ -207,7 +240,7 @@ export class ActorsManager {
     }
   }
 
-  private createLivingActor(agent: LivingAgentFull, highQuality: boolean): LivingActorHandle {
+  private createLivingActor(agent: LivingAgentFull, castShadows: boolean): LivingActorHandle {
     const root = new THREE.Group();
     const bodyPivot = new THREE.Group();
     root.add(bodyPivot);
@@ -215,37 +248,45 @@ export class ActorsManager {
     const skinMat = this.res.skinMats[Math.abs(agent.agent_id) % this.res.skinMats.length];
     const head = new THREE.Mesh(this.res.headGeo, skinMat);
     head.position.set(0, 3.68, 0);
-    head.castShadow = highQuality;
+    head.castShadow = castShadows;
 
     const hairMat = agent.agent_id % 3 === 0 ? this.res.hairBrownMat : this.res.hairDarkMat;
     const hairMesh = new THREE.Mesh(this.res.hairCapGeo, hairMat);
     hairMesh.position.set(0, 3.74, -0.03);
     hairMesh.rotation.x = -0.18;
-    hairMesh.castShadow = highQuality;
+    hairMesh.castShadow = castShadows;
 
     const neck = new THREE.Mesh(this.res.neckGeo, skinMat);
     neck.position.set(0, 3.12, 0);
 
     const torso = new THREE.Mesh(this.res.torsoGeo, this.res.tunicHealthyM);
     torso.position.set(0, 2.24, 0);
-    torso.castShadow = highQuality;
+    torso.castShadow = castShadows;
 
     const sash = new THREE.Mesh(this.res.sashGeo, this.res.sashMat);
     sash.position.set(0, 1.56, 0);
 
     const leftArm = new THREE.Mesh(this.res.armGeo, skinMat);
     leftArm.position.set(-0.84, 2.22, 0);
-    leftArm.castShadow = highQuality;
+    leftArm.castShadow = castShadows;
     const rightArm = new THREE.Mesh(this.res.armGeo, skinMat);
     rightArm.position.set(0.84, 2.22, 0);
-    rightArm.castShadow = highQuality;
+    rightArm.castShadow = castShadows;
+
+    const carriedMesh = new THREE.Mesh(
+      this.res.carriedItemGeo,
+      this.res.carriedItemMats.food,
+    );
+    carriedMesh.position.set(0, -0.78, 0.25);
+    carriedMesh.visible = false;
+    rightArm.add(carriedMesh);
 
     const leftLeg = new THREE.Mesh(this.res.legGeo, this.res.limbMat);
     leftLeg.position.set(-0.3, 0.78, 0);
-    leftLeg.castShadow = highQuality;
+    leftLeg.castShadow = castShadows;
     const rightLeg = new THREE.Mesh(this.res.legGeo, this.res.limbMat);
     rightLeg.position.set(0.3, 0.78, 0);
-    rightLeg.castShadow = highQuality;
+    rightLeg.castShadow = castShadows;
 
     const bellyMesh = new THREE.Mesh(this.res.bellyGeo, this.res.tunicHealthyF);
     bellyMesh.position.set(0, 1.9, 0.35);
@@ -267,6 +308,12 @@ export class ActorsManager {
       bellyMesh,
     );
 
+    const midProxyMesh = new THREE.Mesh(this.res.midProxyGeo, this.res.tunicHealthyM);
+    midProxyMesh.visible = false;
+
+    const farDotMesh = new THREE.Mesh(this.res.farDotGeo, this.res.farDotHealthyMat);
+    farDotMesh.visible = false;
+
     const voiceRing = new THREE.Mesh(this.res.ringGeo, this.res.voiceRingMat);
     voiceRing.position.set(0, 0.28, 0);
     voiceRing.visible = false;
@@ -284,12 +331,22 @@ export class ActorsManager {
     const hitMesh = new THREE.Mesh(this.res.hitProxyGeo, this.res.hitMat);
     hitMesh.userData = {kind: 'agent', agentId: agent.agent_id};
 
-    root.add(contactShadow, voiceRing, selectRing, replayRing, hitMesh);
+    root.add(
+      midProxyMesh,
+      farDotMesh,
+      contactShadow,
+      voiceRing,
+      selectRing,
+      replayRing,
+      hitMesh,
+    );
 
     return {
       agentId: agent.agent_id,
       root,
       bodyPivot,
+      midProxyMesh,
+      farDotMesh,
       hairMesh,
       torsoMesh: torso,
       leftArm,
@@ -297,13 +354,16 @@ export class ActorsManager {
       leftLeg,
       rightLeg,
       bellyMesh,
+      carriedMesh,
       voiceRing,
       selectRing,
       replayRing,
       hitMesh,
       lastAction: agent.last_action,
+      lastPartnerId: agent.last_partner_id,
       phase: (agent.agent_id * 1.37) % (Math.PI * 2),
       baseScale: 1,
+      isFpvSelfHidden: false,
       targetPos: new THREE.Vector3(),
     };
   }
@@ -313,7 +373,7 @@ export class ActorsManager {
     deceasedArchive: DeceasedAgentArchive[],
     faunaList: FaunaData[],
     terrain: WorldTerrainGrid | null,
-    highQuality: boolean,
+    castShadows: boolean,
   ): void {
     const wM = terrain?.width_m ?? 2500;
     const hM = terrain?.height_m ?? 2000;
@@ -325,7 +385,7 @@ export class ActorsManager {
       let handle = this.livingMap.get(ag.agent_id);
       const isNew = !handle;
       if (!handle) {
-        handle = this.createLivingActor(ag, highQuality);
+        handle = this.createLivingActor(ag, castShadows);
         this.livingMap.set(ag.agent_id, handle);
         this.livingGroup.add(handle.root);
       }
@@ -348,8 +408,8 @@ export class ActorsManager {
               : 1.04;
       handle.baseScale = stageScale;
       handle.bodyPivot.scale.setScalar(stageScale);
+      handle.midProxyMesh.scale.setScalar(stageScale);
 
-      // Update elder silver hair
       if (ag.life_stage === 'elder') {
         handle.hairMesh.material = this.res.hairElderMat;
       } else {
@@ -357,20 +417,34 @@ export class ActorsManager {
           ag.agent_id % 3 === 0 ? this.res.hairBrownMat : this.res.hairDarkMat;
       }
 
-      // Update vitality tunic material
-      if (ag.health < 0.38 || ag.hunger > 0.85 || ag.thirst > 0.85) {
-        handle.torsoMesh.material = this.res.tunicCritical;
-      } else if (ag.health < 0.68 || ag.hunger > 0.65 || ag.thirst > 0.65) {
-        handle.torsoMesh.material = this.res.tunicStrained;
+      const isCritical = ag.health < 0.38 || ag.hunger > 0.85 || ag.thirst > 0.85;
+      const isStrained = ag.health < 0.68 || ag.hunger > 0.65 || ag.thirst > 0.65;
+      const tunicMat = isCritical
+        ? this.res.tunicCritical
+        : isStrained
+          ? this.res.tunicStrained
+          : ag.sex === 'F'
+            ? this.res.tunicHealthyF
+            : this.res.tunicHealthyM;
+      handle.torsoMesh.material = tunicMat;
+      handle.midProxyMesh.material = tunicMat;
+      handle.farDotMesh.material =
+        isCritical || isStrained ? this.res.farDotStrainedMat : this.res.farDotHealthyMat;
+
+      if (ag.carried_item && this.res.carriedItemMats[ag.carried_item]) {
+        handle.carriedMesh.material = this.res.carriedItemMats[ag.carried_item];
+        handle.carriedMesh.visible = true;
       } else {
-        handle.torsoMesh.material =
-          ag.sex === 'F' ? this.res.tunicHealthyF : this.res.tunicHealthyM;
+        handle.carriedMesh.visible = false;
       }
 
       handle.bellyMesh.visible = ag.is_pregnant;
       handle.lastAction = ag.last_action;
+      handle.lastPartnerId = ag.last_partner_id;
       handle.voiceRing.visible =
-        ag.last_action === 'communicate' || ag.last_emitted_token !== null;
+        ag.last_action === 'communicate' ||
+        ag.last_action === 'communicate_or_teach' ||
+        ag.last_emitted_token !== null;
     }
 
     for (const [aid, handle] of this.livingMap.entries()) {
@@ -380,7 +454,7 @@ export class ActorsManager {
       }
     }
 
-    // 2. Deceased Memorial Cairns (cap visible cairns on huge histories to last 180 for clarity)
+    // 2. Deceased Memorial Cairns (cap visible cairns to last 180)
     const recentDeceased = deceasedArchive.slice(-180);
     const incomingDeceased = new Set<number>();
     for (const d of recentDeceased) {
@@ -391,8 +465,8 @@ export class ActorsManager {
         const base = new THREE.Mesh(this.res.cairnBaseGeo, this.res.cairnMat);
         const mid = new THREE.Mesh(this.res.cairnMidGeo, this.res.cairnMat);
         const cone = new THREE.Mesh(this.res.cairnGeo, this.res.cairnMat);
-        base.castShadow = highQuality;
-        mid.castShadow = highQuality;
+        base.castShadow = castShadows;
+        mid.castShadow = castShadows;
         base.userData = {kind: 'deceased', agentId: d.agent_id};
         mid.userData = {kind: 'deceased', agentId: d.agent_id};
         cone.userData = {kind: 'deceased', agentId: d.agent_id};
@@ -425,7 +499,7 @@ export class ActorsManager {
 
         const body = new THREE.Mesh(this.res.faunaBodyGeo, mat);
         body.position.set(0, 1.38, 0);
-        body.castShadow = highQuality;
+        body.castShadow = castShadows;
         if (isPred) body.scale.set(1.08, 0.84, 0.82);
 
         const neck = new THREE.Mesh(this.res.faunaNeckGeo, mat);
@@ -458,7 +532,7 @@ export class ActorsManager {
         for (const [lx, lz] of legOffsets) {
           const leg = new THREE.Mesh(this.res.faunaLegGeo, mat);
           leg.position.set(lx, 0.59, lz);
-          leg.castShadow = highQuality;
+          leg.castShadow = castShadows;
           fGrp.add(leg);
         }
 
@@ -506,14 +580,16 @@ export class ActorsManager {
     for (const [aid, h] of this.livingMap.entries()) {
       if (!isFpv) {
         h.root.visible = true;
-        h.bodyPivot.visible = true;
+        h.isFpvSelfHidden = false;
       } else if (aid === observerAgentId) {
-        // Hide own head/body from FPV eye camera so camera doesn't clip inside self
         h.root.visible = true;
+        h.isFpvSelfHidden = true;
         h.bodyPivot.visible = false;
+        h.midProxyMesh.visible = false;
+        h.farDotMesh.visible = false;
       } else {
         h.root.visible = visibleAgentIds.has(aid);
-        h.bodyPivot.visible = h.root.visible;
+        h.isFpvSelfHidden = false;
       }
     }
     for (const d of this.deceasedMap.values()) {
@@ -540,56 +616,154 @@ export class ActorsManager {
     return h ? h.root.position : null;
   }
 
-  public tick(elapsedS: number, dt: number): void {
+  public tick(
+    elapsedS: number,
+    dt: number,
+    camera?: THREE.Camera,
+    quality: QualityPreset = 'high',
+  ): void {
     const lerpAlpha = Math.min(1, dt * 6);
+    if (camera) {
+      camera.updateMatrixWorld();
+      _projScreenMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      _frustum.setFromProjectionMatrix(_projScreenMatrix);
+    }
+
+    const nearCutoffSq = quality === 'low' ? 120 * 120 : quality === 'medium' ? 160 * 160 : 210 * 210;
+    const midCutoffSq = quality === 'low' ? 380 * 380 : quality === 'medium' ? 500 * 500 : 620 * 620;
+
     for (const h of this.livingMap.values()) {
       if (!h.root.visible) continue;
 
-      // Face movement heading smoothly if moving between steps
-      const dx = h.targetPos.x - h.root.position.x;
-      const dz = h.targetPos.z - h.root.position.z;
-      if (dx * dx + dz * dz > 0.04) {
-        const targetYaw = Math.atan2(dx, dz);
-        h.bodyPivot.rotation.y = targetYaw;
+      h.root.position.lerp(h.targetPos, lerpAlpha);
+
+      if (h.isFpvSelfHidden) {
+        h.bodyPivot.visible = false;
+        h.midProxyMesh.visible = false;
+        h.farDotMesh.visible = false;
+        continue;
       }
 
-      h.root.position.lerp(h.targetPos, lerpAlpha);
+      // Frustum culling + 3-Tier Distance LOD
+      let inFrustum = true;
+      let distSq = 0;
+      if (camera) {
+        _actorSphere.center.copy(h.root.position);
+        inFrustum = _frustum.intersectsSphere(_actorSphere);
+        distSq = camera.position.distanceToSquared(h.root.position);
+      }
+
+      if (!inFrustum) {
+        h.bodyPivot.visible = false;
+        h.midProxyMesh.visible = false;
+        h.farDotMesh.visible = false;
+        continue;
+      }
+
+      if (distSq > midCutoffSq) {
+        h.bodyPivot.visible = false;
+        h.midProxyMesh.visible = false;
+        h.farDotMesh.visible = true;
+        continue;
+      }
+
+      if (distSq > nearCutoffSq) {
+        h.bodyPivot.visible = false;
+        h.midProxyMesh.visible = true;
+        h.farDotMesh.visible = false;
+        continue;
+      }
+
+      h.bodyPivot.visible = true;
+      h.midProxyMesh.visible = false;
+      h.farDotMesh.visible = false;
+
+      // Orient smoothly toward partner if interacting, otherwise along travel heading
+      if (h.lastPartnerId !== null) {
+        const partner = this.livingMap.get(h.lastPartnerId);
+        if (partner) {
+          const pdx = partner.root.position.x - h.root.position.x;
+          const pdz = partner.root.position.z - h.root.position.z;
+          if (pdx * pdx + pdz * pdz > 0.05) {
+            h.bodyPivot.rotation.y = Math.atan2(pdx, pdz);
+          }
+        }
+      } else {
+        const dx = h.targetPos.x - h.root.position.x;
+        const dz = h.targetPos.z - h.root.position.z;
+        if (dx * dx + dz * dz > 0.04) {
+          h.bodyPivot.rotation.y = Math.atan2(dx, dz);
+        }
+      }
 
       const t = elapsedS * 3.4 + h.phase;
       const act = h.lastAction;
 
       if (act === 'rest') {
-        h.bodyPivot.position.y = -0.55 * h.baseScale;
+        h.bodyPivot.position.y = -0.52 * h.baseScale;
         h.bodyPivot.rotation.x = 0.35;
         h.leftArm.rotation.x = 0;
         h.rightArm.rotation.x = 0;
         h.leftLeg.rotation.x = 0;
         h.rightLeg.rotation.x = 0;
       } else if (act.startsWith('move_') || act === 'flee') {
-        const swing = Math.sin(t * 1.4) * 0.48;
-        h.bodyPivot.position.y = Math.abs(Math.sin(t * 1.4)) * 0.14;
+        const swing = Math.sin(t * 1.45) * 0.52;
+        h.bodyPivot.position.y = Math.abs(Math.sin(t * 1.45)) * 0.14;
         h.bodyPivot.rotation.x = 0.08;
         h.leftLeg.rotation.x = swing;
         h.rightLeg.rotation.x = -swing;
         h.leftArm.rotation.x = -swing * 0.85;
         h.rightArm.rotation.x = swing * 0.85;
-      } else if (act === 'attack' || act === 'steal') {
+      } else if (act === 'assault_or_kill' || act === 'attack' || act === 'steal') {
         h.bodyPivot.position.y = 0;
-        h.bodyPivot.rotation.x = 0.18;
-        h.rightArm.rotation.x = -1.35 + Math.sin(t * 2.2) * 0.35;
-        h.leftArm.rotation.x = -0.35;
+        h.bodyPivot.rotation.x = 0.2;
+        h.rightArm.rotation.x = -1.42 + Math.sin(t * 2.4) * 0.38;
+        h.leftArm.rotation.x = -0.38;
+        h.leftLeg.rotation.x = 0.2;
+        h.rightLeg.rotation.x = -0.2;
       } else if (
+        act === 'forage_food' ||
         act === 'forage' ||
+        act === 'drink_water' ||
         act === 'drink' ||
         act === 'gather_wood' ||
         act === 'gather_stone' ||
         act === 'gather_herb' ||
+        act === 'craft_or_build' ||
+        act === 'craft_or_invent' ||
+        act === 'mark_symbol_record' ||
         act === 'carve_artifact'
       ) {
         h.bodyPivot.position.y = 0;
-        h.bodyPivot.rotation.x = 0.25 + Math.sin(t) * 0.08;
-        h.rightArm.rotation.x = -0.65 + Math.sin(t * 1.6) * 0.25;
+        h.bodyPivot.rotation.x = 0.26 + Math.sin(t) * 0.08;
+        h.rightArm.rotation.x = -0.7 + Math.sin(t * 1.65) * 0.28;
         h.leftArm.rotation.x = -0.45;
+        h.leftLeg.rotation.x = 0;
+        h.rightLeg.rotation.x = 0;
+      } else if (act === 'eat_inventory') {
+        h.bodyPivot.position.y = 0;
+        h.bodyPivot.rotation.x = 0.05;
+        h.rightArm.rotation.x = -1.15 + Math.sin(t * 1.8) * 0.15;
+        h.leftArm.rotation.x = -0.15;
+        h.leftLeg.rotation.x = 0;
+        h.rightLeg.rotation.x = 0;
+      } else if (
+        act === 'communicate_or_teach' ||
+        act === 'communicate' ||
+        act === 'share_or_barter' ||
+        act === 'cooperate_share' ||
+        act === 'barter' ||
+        act === 'socialize_mate_or_mediate' ||
+        act === 'care_for_other' ||
+        act === 'seek_mate'
+      ) {
+        // Partner-facing conversational / barter hand gesture
+        h.bodyPivot.position.y = 0;
+        h.bodyPivot.rotation.x = 0.04;
+        h.rightArm.rotation.x = -0.75 + Math.sin(t * 1.5) * 0.24;
+        h.leftArm.rotation.x = -0.45 + Math.cos(t * 1.3) * 0.18;
+        h.leftLeg.rotation.x = 0;
+        h.rightLeg.rotation.x = 0;
       } else {
         h.bodyPivot.position.y = 0;
         h.bodyPivot.rotation.x = Math.sin(t * 0.4) * 0.03;
@@ -615,6 +789,9 @@ export class ActorsManager {
     this.res.armGeo.dispose();
     this.res.legGeo.dispose();
     this.res.bellyGeo.dispose();
+    this.res.carriedItemGeo.dispose();
+    this.res.midProxyGeo.dispose();
+    this.res.farDotGeo.dispose();
     this.res.shadowDiscGeo.dispose();
     this.res.hitProxyGeo.dispose();
     this.res.ringGeo.dispose();
@@ -640,6 +817,9 @@ export class ActorsManager {
     this.res.tunicHealthyM.dispose();
     this.res.tunicStrained.dispose();
     this.res.tunicCritical.dispose();
+    for (const cm of Object.values(this.res.carriedItemMats)) cm.dispose();
+    this.res.farDotHealthyMat.dispose();
+    this.res.farDotStrainedMat.dispose();
     this.res.sashMat.dispose();
     this.res.limbMat.dispose();
     this.res.voiceRingMat.dispose();

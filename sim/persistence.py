@@ -74,9 +74,15 @@ class PersistenceEngine:
         metrics_snapshot: dict,
         truth_archive_path: Optional[Path] = None,
         timeline_series: Optional[List[dict]] = None,
+        timeline_id: Optional[str] = None,
+        parent_timeline_id: Optional[str] = None,
+        timeline_kind: str = "original",
+        branch_point_tick: Optional[int] = None,
+        rebirth_records: Optional[List[dict]] = None,
     ) -> dict:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         clock.flush_elapsed_runtime()
+        resolved_timeline_id = timeline_id or str(uuid.uuid5(uuid.NAMESPACE_OID, world_id))
 
         # Append any newly recorded Layer-1 truth events into compressed archive first
         if truth_archive_path is None:
@@ -109,6 +115,10 @@ class PersistenceEngine:
 
                 meta_rows = [
                     ("world_id", world_id),
+                    ("timeline_id", resolved_timeline_id),
+                    ("parent_timeline_id", json.dumps(parent_timeline_id)),
+                    ("timeline_kind", timeline_kind),
+                    ("branch_point_tick", json.dumps(branch_point_tick)),
                     ("schema_version", SCHEMA_VERSION),
                     ("tick", str(clock.tick)),
                     ("next_agent_id", str(agents.next_agent_id)),
@@ -143,25 +153,26 @@ class PersistenceEngine:
                     ("society", json.dumps(society.to_snapshot())),
                     ("history", json.dumps(history.to_snapshot())),
                     ("timeline_series", json.dumps(timeline_series or [])),
+                    ("rebirth_records", json.dumps(rebirth_records or [])),
                 ]
                 cur.executemany("INSERT INTO subsystems (name, data_json) VALUES (?, ?)", sub_rows)
                 conn.commit()
             finally:
                 conn.close()
 
-            # 3. Independent neural brains bundle (living agents only — dead brains never resurrected)
+            # 3. Independent neural brains bundle (both living AND deceased individuals archived faithfully)
             brains_path = stage_dir / "brains_state.bin.gz"
-            living_brains = {
+            archived_brains = {
                 aid: ag.brain.export_state()
                 for aid, ag in agents.all_agents.items()
-                if ag.is_alive and ag.brain is not None
+                if ag.brain is not None
             }
             if TORCH_AVAILABLE and torch is not None:
                 with gzip.open(brains_path, "wb") as gz:
-                    torch.save(living_brains, gz)
+                    torch.save(archived_brains, gz)
             else:
                 with gzip.open(brains_path, "wb") as gz:
-                    gz.write(pickle.dumps(living_brains, protocol=pickle.HIGHEST_PROTOCOL))
+                    gz.write(pickle.dumps(archived_brains, protocol=pickle.HIGHEST_PROTOCOL))
 
             # 4. RNG states (Python + Torch CPU if active)
             rng_path = stage_dir / "rng_state.json.gz"
@@ -189,6 +200,11 @@ class PersistenceEngine:
                 backend_name=backend_name,
                 config=config,
                 timeline_series=timeline_series,
+                timeline_id=resolved_timeline_id,
+                parent_timeline_id=parent_timeline_id,
+                timeline_kind=timeline_kind,
+                branch_point_tick=branch_point_tick,
+                rebirth_records=rebirth_records,
             )
             with open(obs_path, "w", encoding="utf-8") as fh:
                 json.dump(obs_payload, fh, ensure_ascii=False, separators=(",", ":"))
@@ -205,6 +221,11 @@ class PersistenceEngine:
             living_count = sum(1 for a in agents.all_agents.values() if a.is_alive)
             manifest = {
                 "world_id": world_id,
+                "timeline_id": resolved_timeline_id,
+                "parent_timeline_id": parent_timeline_id,
+                "timeline_kind": timeline_kind,
+                "branch_point_tick": branch_point_tick,
+                "deceased_brains_archived": True,
                 "schema_version": SCHEMA_VERSION,
                 "sim_tick": clock.tick,
                 "sim_date": clock.sim_date_str(),
@@ -324,7 +345,7 @@ class PersistenceEngine:
         for aid, data_json in agent_rows:
             ag_dict = json.loads(data_json)
             brain = None
-            if ag_dict["is_alive"] and aid in brains_raw:
+            if aid in brains_raw:
                 brain = AgentBrain.from_exported_state(brains_raw[aid], require_torch=require_torch)
             agent_engine.all_agents[aid] = Agent.from_registry_dict(ag_dict, brain=brain)
 
@@ -344,6 +365,17 @@ class PersistenceEngine:
         manifest["restored_timeline_series"] = (
             json.loads(subs["timeline_series"]) if "timeline_series" in subs else []
         )
+        manifest["timeline_id"] = meta.get("timeline_id") or manifest.get("timeline_id") or str(uuid.uuid5(uuid.NAMESPACE_OID, world_id))
+        manifest["parent_timeline_id"] = (
+            json.loads(meta["parent_timeline_id"]) if "parent_timeline_id" in meta else manifest.get("parent_timeline_id")
+        )
+        manifest["timeline_kind"] = meta.get("timeline_kind") or manifest.get("timeline_kind") or "original"
+        manifest["branch_point_tick"] = (
+            json.loads(meta["branch_point_tick"]) if "branch_point_tick" in meta else manifest.get("branch_point_tick")
+        )
+        manifest["restored_rebirth_records"] = (
+            json.loads(subs["rebirth_records"]) if "rebirth_records" in subs else []
+        )
 
         return world_id, config, clock, world, agent_engine, comm, society, history, rng, manifest
 
@@ -360,6 +392,11 @@ class PersistenceEngine:
         backend_name: str,
         config: Optional[SimulationConfig] = None,
         timeline_series: Optional[List[dict]] = None,
+        timeline_id: Optional[str] = None,
+        parent_timeline_id: Optional[str] = None,
+        timeline_kind: str = "original",
+        branch_point_tick: Optional[int] = None,
+        rebirth_records: Optional[List[dict]] = None,
     ) -> dict:
         """Read-only structured JSON contract for Civilization Observatory (zero mutation, zero global leaks in FPV)."""
         living_dict = {aid: ag for aid, ag in agents.all_agents.items() if ag.is_alive}
@@ -451,6 +488,15 @@ class PersistenceEngine:
                     "gestation_ticks": a.gestation_ticks,
                     "last_action": a.last_action,
                     "last_emitted_token": a.last_emitted_token,
+                    "carried_item": a.carried_item,
+                    "last_partner_id": a.last_partner_id,
+                    "rebirth_count": a.rebirth_count,
+                    "rebirth_tick": a.rebirth_tick,
+                    "original_death_tick": a.original_death_tick,
+                    "original_death_date": a.original_death_date,
+                    "original_cause_of_death": a.original_cause_of_death,
+                    "death_penalty_record": a.death_penalty_record,
+                    "brain_fingerprint": a.brain.weight_fingerprint() if a.brain is not None else None,
                     "traits": asdict(a.traits),
                     "inventory": {k: round(v, 3) for k, v in a.inventory.items()},
                     "skills": {k: round(v, 3) for k, v in a.memory.skills.items()},
@@ -493,6 +539,13 @@ class PersistenceEngine:
                 "children_ids": list(a.children_ids),
                 "is_alive": False,
                 "last_action": a.last_action,
+                "rebirth_count": a.rebirth_count,
+                "rebirth_tick": a.rebirth_tick,
+                "original_death_tick": a.original_death_tick,
+                "original_death_date": a.original_death_date,
+                "original_cause_of_death": a.original_cause_of_death,
+                "death_penalty_record": a.death_penalty_record,
+                "brain_fingerprint": a.brain.weight_fingerprint() if a.brain is not None else None,
                 "traits": asdict(a.traits),
                 "skills": {k: round(v, 3) for k, v in a.memory.skills.items()},
                 "lexicon_size": len(a.lexicon),
@@ -558,6 +611,11 @@ class PersistenceEngine:
             "export_schema_version": SCHEMA_VERSION,
             "exported_at_utc": datetime.now(timezone.utc).isoformat(),
             "world_id": world_id,
+            "timeline_id": timeline_id or str(uuid.uuid5(uuid.NAMESPACE_OID, world_id)),
+            "parent_timeline_id": parent_timeline_id,
+            "timeline_kind": timeline_kind,
+            "branch_point_tick": branch_point_tick,
+            "rebirth_records": list(rebirth_records or []),
             "backend": backend_name,
             "clock": clock.to_dict(),
             "engine_capabilities": {

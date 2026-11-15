@@ -7,10 +7,13 @@ export interface Translations {
   sourcePublished: string;
   sourceUploaded: string;
   sourceTestFixture: string;
+  sourceLiveRunner: string;
   testFixtureWarning: string;
   uploadSnapshotBtn: string;
+  multiImportBtn: string;
   loadTestFixtureBtn: string;
   refreshPublishedBtn: string;
+  newWorldBtn: string;
   emptyHeadline: string;
   emptyBody: string;
   emptyDropHint: string;
@@ -19,8 +22,11 @@ export interface Translations {
   emptyStep2: string;
   emptyStep3: string;
   uploadErrorTitle: string;
-  qualityHigh: string;
   qualityLow: string;
+  qualityMedium: string;
+  qualityHigh: string;
+  qualityUltra: string;
+  fpsLabel: string;
   softwareGlBanner: string;
   zenEnter: string;
   zenExit: string;
@@ -46,6 +52,9 @@ export interface Translations {
   clockRatioNote: string;
   snapshotTimeLabel: string;
   worldIdLabel: string;
+  timelineOriginal: string;
+  timelineExperimental: string;
+  timelineBranchTick: string;
   livingLabel: string;
   deceasedLabel: string;
   generationLabel: string;
@@ -57,6 +66,7 @@ export interface Translations {
   tabCivilization: string;
   tabHistory: string;
   tabTelemetry: string;
+  tabComparison: string;
   searchAgentPlaceholder: string;
   searchButton: string;
   selectAgentPrompt: string;
@@ -80,6 +90,13 @@ export interface Translations {
   lastSignal: string;
   causeOfDeath: string;
   deathTick: string;
+  rebirthSection: string;
+  rebirthCountLabel: string;
+  originalDeathLabel: string;
+  rebirthTickLabel: string;
+  deathPenaltyLabel: string;
+  brainFingerprintLabel: string;
+  evidenceCuesLabel: string;
   traitsSection: string;
   skillsSection: string;
   inventorySection: string;
@@ -145,6 +162,12 @@ export interface Translations {
   historyFilterAll: string;
   historyFilterYearPlaceholder: string;
   historyFilterAgentPlaceholder: string;
+  historySortNewest: string;
+  historySortOldest: string;
+  historyPhaseAll: string;
+  historyPhasePreRebirth: string;
+  historyPhasePostRebirth: string;
+  eventDetailTitle: string;
   milestonesTitle: string;
   layer1Title: string;
   layer1Subtitle: string;
@@ -167,6 +190,35 @@ export interface Translations {
   herbivores: string;
   predators: string;
   soilMoisture: string;
+  // Timeline Bar
+  tlPlay: string;
+  tlPause: string;
+  tlStep: string;
+  tlSpeed: string;
+  tlBranchRebirth: string;
+  tlHistoricalPreview: string;
+  tlReturnLive: string;
+  tlTimelineSelector: string;
+  // Comparison Drawer
+  cmpTitle: string;
+  cmpOriginalLabel: string;
+  cmpExperimentalLabel: string;
+  cmpNoPairs: string;
+  cmpSurvivalRate: string;
+  cmpRebirthAuditTitle: string;
+  // Multi-file JSON Importer
+  impTitle: string;
+  impSelectFiles: string;
+  impSelectFolder: string;
+  impProcessing: string;
+  impAccepted: string;
+  impQuarantined: string;
+  impUnindexed: string;
+  impWarnings: string;
+  impCycles: string;
+  impCommitBtn: string;
+  impRollbackBtn: string;
+  impCloseBtn: string;
   actions: Record<string, string>;
   causes: Record<string, string>;
   seasons: Record<string, string>;
@@ -182,26 +234,32 @@ export interface Translations {
 
 const AR: Translations = {
   appTitle: 'مرصد الحضارة',
-  appSubtitle: 'البداية إلى الحضارة — نافذة المراقبة التفاعلية',
+  appSubtitle: 'البداية إلى الحضارة — المحاكاة الحضارية والخطوط الزمنية',
   sourceEmpty: 'بانتظار لقطة محاكاة',
   sourcePublished: 'لقطة حقيقية منشورة',
-  sourceUploaded: 'ملف محلي مرفوع',
+  sourceUploaded: 'ملف/حزمة محلية مستوردة',
   sourceTestFixture: 'بيانات اختبارية تجريبية (معزولة)',
+  sourceLiveRunner: 'محاكاة حية عبر المحرك',
   testFixtureWarning: 'تنبيه: هذه اللقطة اختبارية معزولة وليست عالماً حياً مستمراً.',
-  uploadSnapshotBtn: 'رفع observatory_export.json',
+  uploadSnapshotBtn: 'رفع ملف JSON',
+  multiImportBtn: 'استيراد ملفات / مجلدات',
   loadTestFixtureBtn: 'معاينة بيانات اختبارية معزولة',
   refreshPublishedBtn: 'تحديث اللقطة المنشورة',
+  newWorldBtn: 'عالم جديد حي',
   emptyHeadline: 'لا توجد لقطة عالم حقيقية محمّلة بعد',
   emptyBody:
-    'يعرض هذا المرصد الحالة الفعلية لمحرك البداية إلى الحضارة فقط دون اصطناع تاريخ أو مبانٍ غير موجودة. ارفع ملف observatory_export.json الناتج عن تشغيل GitHub Actions اليدوي، أو عاين البيئة الاختبارية المعزولة لفحص القدرات ثلاثية الأبعاد.',
-  emptyDropHint: 'اسحب وأفلت ملف observatory_export.json هنا أو اضغط للرفع',
-  emptyStepsTitle: 'مسار جلب لقطة حقيقية من GitHub Actions',
-  emptyStep1: '1. شغّل Workflow المحاكاة يدوياً عبر workflow_dispatch في مستودع GitHub.',
-  emptyStep2: '2. حمّل ملف sim-logs-<RUN_ID> أو انسخ observatory_export.json.',
-  emptyStep3: '3. ارفع الملف هنا للمراقبة الفورية (بما في ذلك لقطات المخطط 1.0 و 2.0).',
+    'يعرض هذا المرصد الحالة الفعلية لمحرك البداية إلى الحضارة فقط دون اصطناع تاريخ أو مبانٍ غير موجودة. يمكنك تشغيل عالم حي محلي، أو استيراد ملف أو مجلد كامل من مخرجات المحرك، أو معاينة البيئة الاختبارية.',
+  emptyDropHint: 'اسحب وأفلت ملف observatory_export.json أو مجلد الخطوات هنا',
+  emptyStepsTitle: 'مسارات التشغيل والاستيراد الحقيقية',
+  emptyStep1: '1. أنشئ عالماً حياً عبر الخادم المحلي، أو شغّل Workflow المحاكاة يدوياً على GitHub.',
+  emptyStep2: '2. استورد ملفاً واحداً أو مئات ملفات الخطوات مع التحقق التسلسلي والطوبولوجي.',
+  emptyStep3: '3. أنشئ فرعاً زمنياً تجريبياً لإحياء المتوفين ومقارنة النتائج بين الخطين.',
   uploadErrorTitle: 'تعذّر قراءة ملف اللقطة',
-  qualityHigh: 'جودة عالية',
-  qualityLow: 'أداء خفيف / جوال',
+  qualityLow: 'منخفضة',
+  qualityMedium: 'متوسطة',
+  qualityHigh: 'عالية',
+  qualityUltra: 'فائقة',
+  fpsLabel: 'إطار/ث',
   softwareGlBanner: 'تم رصد مُصيّر رسومي برمجي — ضُبطت الوتيرة تلقائياً لحماية السلاسة.',
   zenEnter: 'وضع السينما',
   zenExit: 'إظهار الواجهة',
@@ -227,6 +285,9 @@ const AR: Translations = {
   clockRatioNote: '1 دقيقة فعلية = 1 شهر محاكى (في الوضع الزمني الحقيقي)',
   snapshotTimeLabel: 'توقيت اللقطة',
   worldIdLabel: 'معرّف العالم',
+  timelineOriginal: 'الخط الأصلي',
+  timelineExperimental: 'فرع الإحياء التجريبي',
+  timelineBranchTick: 'نقطة التفرّع',
   livingLabel: 'أحياء',
   deceasedLabel: 'متوفون',
   generationLabel: 'أعلى جيل',
@@ -238,7 +299,8 @@ const AR: Translations = {
   tabCivilization: 'الأنظمة الحضارية',
   tabHistory: 'التاريخ والأحداث',
   tabTelemetry: 'المؤشرات والزمن',
-  searchAgentPlaceholder: 'ابحث برقم الفرد (مثال: 12)',
+  tabComparison: 'مقارنة الخطوط',
+  searchAgentPlaceholder: 'ابحث برقم الفرد (مثال: 14)',
   searchButton: 'انتقال',
   selectAgentPrompt: 'انقر على أي فرد في العالم ثلاثي الأبعاد أو ابحث برقمه لمعاينة عقله وذاكرته.',
   agentNotFound: 'لم يُعثر على فرد بهذا المعرّف في اللقطة الحالية.',
@@ -261,6 +323,13 @@ const AR: Translations = {
   lastSignal: 'آخر رمز صوتي',
   causeOfDeath: 'سبب الوفاة',
   deathTick: 'خطوة الوفاة',
+  rebirthSection: 'سجل الإحياء والتعلّم من الوفاة',
+  rebirthCountLabel: 'مرات الإحياء',
+  originalDeathLabel: 'الوفاة الأصلية',
+  rebirthTickLabel: 'خطوة الإحياء',
+  deathPenaltyLabel: 'تحديث عقوبة الموت العصبية',
+  brainFingerprintLabel: 'بصمة الأوزان العصبية',
+  evidenceCuesLabel: 'الإشارات الحسية المسبقة',
   traitsSection: 'السمات الفردية المستقلة',
   skillsSection: 'المهارات المكتسبة',
   inventorySection: 'المخزون الشخصي',
@@ -327,6 +396,12 @@ const AR: Translations = {
   historyFilterAll: 'كل الأنواع',
   historyFilterYearPlaceholder: 'تصفية بالسنة...',
   historyFilterAgentPlaceholder: 'رقم فرد مشارك...',
+  historySortNewest: 'الأحدث أولاً',
+  historySortOldest: 'الأقدم أولاً',
+  historyPhaseAll: 'كل المراحل',
+  historyPhasePreRebirth: 'قبل الإحياء',
+  historyPhasePostRebirth: 'بعد الإحياء التجريبي',
+  eventDetailTitle: 'تفاصيل الحدث الموثّق',
   milestonesTitle: 'أول لحظات الظهور الحضاري',
   layer1Title: 'الطبقة 1: الحقيقة الواقعية (للمراقب فقط)',
   layer1Subtitle: 'السجل الدقيق الصادر عن المحرك — غير مرئي للأفراد',
@@ -349,32 +424,72 @@ const AR: Translations = {
   herbivores: 'العاشبات',
   predators: 'المفترسات',
   soilMoisture: 'رطوبة التربة',
+  tlPlay: 'تشغيل',
+  tlPause: 'إيقاف مؤقت',
+  tlStep: 'خطوة +1',
+  tlSpeed: 'السرعة',
+  tlBranchRebirth: 'إنشاء فرع إحياء تجريبي',
+  tlHistoricalPreview: 'وضع المعاينة التاريخية (للقراءة فقط)',
+  tlReturnLive: 'العودة للحالة الحالية',
+  tlTimelineSelector: 'الخط الزمني',
+  cmpTitle: 'مقارنة الخط الأصلي بفرع الإحياء التجريبي',
+  cmpOriginalLabel: 'الخط الأصلي (الأم)',
+  cmpExperimentalLabel: 'الفرع التجريبي المستقل',
+  cmpNoPairs: 'يتطلب الأمر خطاً أصلياً وفرعاً تجريبياً متفرعاً منه لإجراء المقارنة المباشرة.',
+  cmpSurvivalRate: 'نسبة البقاء',
+  cmpRebirthAuditTitle: 'سجل الأفراد المُحيَين وحالتهم بعد الإحياء',
+  impTitle: 'مستورد حزم JSON غير المحدود والترتيب الطوبولوجي',
+  impSelectFiles: 'اختيار ملفات JSON (عدد غير محدود)',
+  impSelectFolder: 'استيراد مجلد كامل',
+  impProcessing: 'جارٍ الفحص والترتيب الرقمي والطوبولوجي...',
+  impAccepted: 'ملفات سليمة ومرتبة',
+  impQuarantined: 'حجر الملفات التالفة',
+  impUnindexed: 'بانتظار المراجعة (غير مفهرسة)',
+  impWarnings: 'تنبيهات التسلسل والفجوات',
+  impCycles: 'تعارضات دورية في الاعتماديات',
+  impCommitBtn: 'تطبيق الخط الزمني المحدد ذرياً',
+  impRollbackBtn: 'تراجع للحالة السابقة',
+  impCloseBtn: 'إغلاق',
   actions: {
     idle: 'سكون / تأمل',
+    rest: 'راحة واستشفاء',
     move_random: 'تجول واستكشاف',
     move_to_water: 'التوجه إلى الماء',
     move_to_food: 'التوجه إلى الغذاء',
+    move_north: 'التحرك شمالاً',
+    move_south: 'التحرك جنوباً',
+    move_east: 'التحرك شرقاً',
+    move_west: 'التحرك غرباً',
     drink: 'شرب الماء',
+    drink_water: 'شرب الماء',
     forage: 'جمع الغذاء',
+    forage_food: 'جمع الغذاء',
     gather_wood: 'جمع الخشب',
     gather_stone: 'جمع الحجارة',
     gather_herb: 'جمع الأعشاب الطبية',
-    rest: 'راحة ونوم',
+    eat_inventory: 'تناول من المخزون',
     communicate: 'إصدار إشارة تواصل',
+    communicate_or_teach: 'تواصل أو تعليم',
     cooperate_share: 'تعاون ومشاركة',
     barter: 'مقايضة',
+    share_or_barter: 'مشاركة أو مقايضة',
     craft_or_invent: 'صناعة وابتكار',
+    craft_or_build: 'صناعة وبناء',
     carve_artifact: 'نقش وتدوين أثر',
+    mark_symbol_record: 'نقش وتدوين رمز',
     attack: 'هجوم واشتباك',
+    assault_or_kill: 'اعتداء أو قتل',
     steal: 'سرقة',
     flee: 'فرار',
     care_for_other: 'رعاية وعلاج',
     seek_mate: 'تقارب وتكوين أسرة',
+    socialize_mate_or_mediate: 'تآلف أو وساطة',
   },
   causes: {
     starvation: 'المجاعة',
     dehydration: 'العطش الشديد',
     disease: 'المرض',
+    illness_or_injury: 'المرض أو الإصابة',
     old_age: 'التقدم في العمر',
     predator: 'افتراس حيوان مفترس',
     murder: 'القتل',
@@ -403,17 +518,24 @@ const AR: Translations = {
     elder: 'كبير سن',
   },
   traits: {
-    aggression: 'الاندفاع العدواني',
+    boldness: 'الجرأة والمبادرة',
+    empathy: 'التعاطف',
     curiosity: 'الفضول والاستكشاف',
+    aggression: 'الاندفاع العدواني',
+    cooperation: 'التعاون والاجتماعية',
     sociability: 'الاجتماعية',
     risk_tolerance: 'تحمل المخاطرة',
-    empathy: 'التعاطف',
     endurance: 'القدرة على التحمل',
   },
   skills: {
     foraging: 'الجمع والالتقاط',
-    crafting: 'الصناعة والأدوات',
+    tool_shaping: 'تشكيل الأدوات',
+    shelter_building: 'بناء المأوى',
+    cultivation: 'الاستنبات والرعاية',
     healing: 'المداواة والعلاج',
+    symbol_marking: 'النقش والتدوين',
+    mediation: 'الوساطة وحل النزاعات',
+    crafting: 'الصناعة والأدوات',
     navigation: 'الملاحة والاتجاهات',
     combat: 'الدفاع والقتال',
     documentation: 'التدوين والنقش',
@@ -451,6 +573,7 @@ const AR: Translations = {
     first_currency_exchange_tick: 'أول استخدام لرمز تبادل',
   },
   techs: {
+    stone_toolmaking: 'صناعة الأدوات الحجرية',
     stone_flaking: 'تشظية الحجر',
     crude_spear: 'رمح بدائي',
     herbal_poultice: 'كمادة عشبية',
@@ -471,26 +594,32 @@ const AR: Translations = {
 
 const EN: Translations = {
   appTitle: 'Civilization Observatory',
-  appSubtitle: 'From Beginning to Civilization — Interactive World Monitor',
+  appSubtitle: 'From Beginning to Civilization — Interactive Simulation & Experimental Timelines',
   sourceEmpty: 'Awaiting real snapshot',
   sourcePublished: 'Published World Snapshot',
-  sourceUploaded: 'Uploaded Local Snapshot',
+  sourceUploaded: 'Imported Local Snapshot/Batch',
   sourceTestFixture: 'Isolated Test Fixture (Preview Only)',
+  sourceLiveRunner: 'Live Simulation Engine',
   testFixtureWarning: 'Notice: Viewing an isolated test fixture, not a live persistent world.',
-  uploadSnapshotBtn: 'Load observatory_export.json',
+  uploadSnapshotBtn: 'Load JSON',
+  multiImportBtn: 'Multi-File / Folder Import',
   loadTestFixtureBtn: 'Preview Isolated Test Fixture',
   refreshPublishedBtn: 'Reload Published Snapshot',
+  newWorldBtn: 'New Live World',
   emptyHeadline: 'No Real World Snapshot Loaded Yet',
   emptyBody:
-    'This observatory strictly renders authentic engine outputs from From Beginning to Civilization without inventing buildings, history, or outcomes. Upload an observatory_export.json file downloaded from a manual GitHub Actions run, or open the isolated test fixture to inspect the 3D world.',
-  emptyDropHint: 'Drag & drop observatory_export.json here or click to browse',
-  emptyStepsTitle: 'How to obtain a real simulation snapshot',
-  emptyStep1: '1. Trigger the simulation workflow manually via workflow_dispatch on GitHub.',
-  emptyStep2: '2. Download sim-logs-<RUN_ID> or extract observatory_export.json.',
-  emptyStep3: '3. Load the JSON here for full 3D, FPV, genealogy, and 3-layer history inspection.',
+    'This observatory strictly renders authentic engine outputs from From Beginning to Civilization without inventing buildings, history, or outcomes. Launch a live local world, import multi-file JSON sequences/folders, or preview the isolated test fixture.',
+  emptyDropHint: 'Drag & drop observatory_export.json or step files here',
+  emptyStepsTitle: 'Authentic Simulation & Import Workflows',
+  emptyStep1: '1. Launch a live world via the local runner or run the manual GitHub Actions workflow.',
+  emptyStep2: '2. Import single snapshots or unlimited step JSON folders with topological validation.',
+  emptyStep3: '3. Branch experimental Rebirth timelines to revive deceased agents and compare outcomes.',
   uploadErrorTitle: 'Could Not Parse Snapshot File',
-  qualityHigh: 'High Fidelity',
-  qualityLow: 'Low / Mobile',
+  qualityLow: 'Low',
+  qualityMedium: 'Medium',
+  qualityHigh: 'High',
+  qualityUltra: 'Ultra',
+  fpsLabel: 'FPS',
   softwareGlBanner: 'Software WebGL detected — frame pacing adjusted automatically for responsiveness.',
   zenEnter: 'Cinema Mode',
   zenExit: 'Show Controls',
@@ -516,6 +645,9 @@ const EN: Translations = {
   clockRatioNote: '1 real minute = 1 simulated month (in realtime pacing mode)',
   snapshotTimeLabel: 'Snapshot Exported',
   worldIdLabel: 'World ID',
+  timelineOriginal: 'Original Timeline',
+  timelineExperimental: 'Experimental Rebirth Branch',
+  timelineBranchTick: 'Branch Tick',
   livingLabel: 'Living',
   deceasedLabel: 'Deceased',
   generationLabel: 'Max Gen',
@@ -527,7 +659,8 @@ const EN: Translations = {
   tabCivilization: 'Systems',
   tabHistory: 'History & Replay',
   tabTelemetry: 'Telemetry',
-  searchAgentPlaceholder: 'Jump to Agent ID (e.g. 12)',
+  tabComparison: 'Compare Timelines',
+  searchAgentPlaceholder: 'Jump to Agent ID (e.g. 14)',
   searchButton: 'Go',
   selectAgentPrompt: 'Click any individual in the 3D world or search by ID to inspect brain state and memories.',
   agentNotFound: 'No individual with that ID exists in this snapshot.',
@@ -550,6 +683,13 @@ const EN: Translations = {
   lastSignal: 'Last Emitted Token',
   causeOfDeath: 'Cause of Death',
   deathTick: 'Death Tick',
+  rebirthSection: 'Rebirth & Death-Penalty Learning',
+  rebirthCountLabel: 'Rebirths',
+  originalDeathLabel: 'Prior Death',
+  rebirthTickLabel: 'Rebirth Tick',
+  deathPenaltyLabel: 'Neural Death Penalty Update',
+  brainFingerprintLabel: 'Brain Weight Fingerprint',
+  evidenceCuesLabel: 'Preceding Local Cues',
   traitsSection: 'Independent Traits',
   skillsSection: 'Acquired Skills',
   inventorySection: 'Inventory',
@@ -616,6 +756,12 @@ const EN: Translations = {
   historyFilterAll: 'All Event Types',
   historyFilterYearPlaceholder: 'Filter by Year...',
   historyFilterAgentPlaceholder: 'Participant ID...',
+  historySortNewest: 'Newest First',
+  historySortOldest: 'Oldest First',
+  historyPhaseAll: 'All Phases',
+  historyPhasePreRebirth: 'Pre-Rebirth',
+  historyPhasePostRebirth: 'Post-Rebirth Branch',
+  eventDetailTitle: 'Documented Event Record',
   milestonesTitle: 'First Emergence Milestones',
   layer1Title: 'Layer 1: Ground Truth (Observer Only)',
   layer1Subtitle: 'Exact engine record — completely hidden from agents',
@@ -638,32 +784,72 @@ const EN: Translations = {
   herbivores: 'Herbivores',
   predators: 'Predators',
   soilMoisture: 'Avg Soil Moisture',
+  tlPlay: 'Play',
+  tlPause: 'Pause',
+  tlStep: 'Step +1',
+  tlSpeed: 'Speed',
+  tlBranchRebirth: 'Branch Experimental Rebirth',
+  tlHistoricalPreview: 'Historical Preview Mode (Read-Only)',
+  tlReturnLive: 'Return to Live Head',
+  tlTimelineSelector: 'Timeline',
+  cmpTitle: 'Original vs Experimental Rebirth Timeline',
+  cmpOriginalLabel: 'Original Timeline (Parent)',
+  cmpExperimentalLabel: 'Experimental Rebirth Branch',
+  cmpNoPairs: 'Load or branch an Original + Experimental timeline pair to inspect live delta comparison.',
+  cmpSurvivalRate: 'Survival Rate',
+  cmpRebirthAuditTitle: 'Revived Individuals & Post-Rebirth Audit',
+  impTitle: 'Unlimited Multi-File JSON & Topological Sequencer',
+  impSelectFiles: 'Select JSON Files (Unlimited)',
+  impSelectFolder: 'Import Entire Folder',
+  impProcessing: 'Inspecting metadata & solving topological sequence...',
+  impAccepted: 'Ordered & Valid Files',
+  impQuarantined: 'Corrupted Quarantine',
+  impUnindexed: 'Unindexed Review Queue',
+  impWarnings: 'Sequence Gaps & Warnings',
+  impCycles: 'Dependency Cycles',
+  impCommitBtn: 'Atomically Load Selected Timeline',
+  impRollbackBtn: 'Rollback Previous State',
+  impCloseBtn: 'Close',
   actions: {
     idle: 'Idle',
+    rest: 'Rest / Recover',
     move_random: 'Roam / Explore',
     move_to_water: 'Move to Water',
     move_to_food: 'Move to Food',
+    move_north: 'Move North',
+    move_south: 'Move South',
+    move_east: 'Move East',
+    move_west: 'Move West',
     drink: 'Drink Water',
+    drink_water: 'Drink Water',
     forage: 'Forage Food',
+    forage_food: 'Forage Food',
     gather_wood: 'Gather Wood',
     gather_stone: 'Gather Stone',
     gather_herb: 'Gather Herbs',
-    rest: 'Rest / Sleep',
+    eat_inventory: 'Eat from Inventory',
     communicate: 'Emit Vocal Signal',
+    communicate_or_teach: 'Communicate / Teach',
     cooperate_share: 'Cooperate & Share',
     barter: 'Barter',
+    share_or_barter: 'Share or Barter',
     craft_or_invent: 'Craft / Experiment',
+    craft_or_build: 'Craft / Build',
     carve_artifact: 'Carve Surface Artifact',
+    mark_symbol_record: 'Mark Symbol / Record',
     attack: 'Attack',
+    assault_or_kill: 'Assault / Conflict',
     steal: 'Steal',
     flee: 'Flee',
     care_for_other: 'Care / Heal',
     seek_mate: 'Seek Mate',
+    socialize_mate_or_mediate: 'Socialize / Mediate',
   },
   causes: {
     starvation: 'Starvation',
     dehydration: 'Dehydration',
     disease: 'Disease',
+    illness_or_injury: 'Illness or Injury',
     old_age: 'Old Age',
     predator: 'Predator Attack',
     murder: 'Homicide',
@@ -692,17 +878,24 @@ const EN: Translations = {
     elder: 'Elder',
   },
   traits: {
-    aggression: 'Aggression',
+    boldness: 'Boldness',
+    empathy: 'Empathy',
     curiosity: 'Curiosity',
+    aggression: 'Aggression',
+    cooperation: 'Cooperation',
     sociability: 'Sociability',
     risk_tolerance: 'Risk Tolerance',
-    empathy: 'Empathy',
     endurance: 'Endurance',
   },
   skills: {
     foraging: 'Foraging',
-    crafting: 'Crafting',
+    tool_shaping: 'Tool Shaping',
+    shelter_building: 'Shelter Building',
+    cultivation: 'Cultivation',
     healing: 'Healing',
+    symbol_marking: 'Symbol Marking',
+    mediation: 'Mediation',
+    crafting: 'Crafting',
     navigation: 'Navigation',
     combat: 'Combat',
     documentation: 'Documentation',
@@ -740,6 +933,7 @@ const EN: Translations = {
     first_currency_exchange_tick: 'First Currency Token Exchange',
   },
   techs: {
+    stone_toolmaking: 'Stone Toolmaking',
     stone_flaking: 'Stone Flaking',
     crude_spear: 'Crude Spear',
     herbal_poultice: 'Herbal Poultice',

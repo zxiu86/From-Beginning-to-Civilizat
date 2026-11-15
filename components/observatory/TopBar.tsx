@@ -2,13 +2,15 @@
 
 import React from 'react';
 import {
+  AlertTriangle,
   Clock,
+  FolderOpen,
   Globe,
+  Play,
   RefreshCw,
   SlidersHorizontal,
   Upload,
   Users,
-  AlertTriangle,
 } from 'lucide-react';
 import {formatDurationSeconds} from '@/lib/observatory/adapter';
 import type {Translations} from '@/lib/observatory/i18n';
@@ -25,10 +27,15 @@ interface TopBarProps {
   snapshot: ObservatorySnapshot | null;
   sourceMode: SnapshotSourceMode;
   quality: QualityPreset;
+  fps: number;
   softwareGl: boolean;
+  liveApiAvailable: boolean;
+  creatingLiveWorld: boolean;
   onToggleLocale: () => void;
-  onToggleQuality: () => void;
+  onChangeQuality: (q: QualityPreset) => void;
   onUploadClick: () => void;
+  onOpenMultiImporter: () => void;
+  onStartLiveWorld: () => void;
   onRefreshPublished: () => void;
 }
 
@@ -38,25 +45,32 @@ export default function TopBar({
   snapshot,
   sourceMode,
   quality,
+  fps,
   softwareGl,
+  liveApiAvailable,
+  creatingLiveWorld,
   onToggleLocale,
-  onToggleQuality,
+  onChangeQuality,
   onUploadClick,
+  onOpenMultiImporter,
+  onStartLiveWorld,
   onRefreshPublished,
 }: TopBarProps) {
   const sourceLabel =
-    sourceMode === 'published'
-      ? t.sourcePublished
-      : sourceMode === 'uploaded'
-        ? t.sourceUploaded
-        : sourceMode === 'test_fixture'
-          ? t.sourceTestFixture
-          : t.sourceEmpty;
+    sourceMode === 'live_runner'
+      ? t.sourceLiveRunner
+      : sourceMode === 'published'
+        ? t.sourcePublished
+        : sourceMode === 'uploaded'
+          ? t.sourceUploaded
+          : sourceMode === 'test_fixture'
+            ? t.sourceTestFixture
+            : t.sourceEmpty;
 
   const sourceAccent =
     sourceMode === 'test_fixture'
       ? 'border-[#D99B26]/60 bg-[#D99B26]/15 text-[#F2BE49]'
-      : sourceMode === 'published' || sourceMode === 'uploaded'
+      : sourceMode === 'live_runner' || sourceMode === 'published' || sourceMode === 'uploaded'
         ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
         : 'border-white/10 bg-[#18212C] text-[#9FB0C3]';
 
@@ -76,12 +90,17 @@ export default function TopBar({
               <span className={`hidden rounded border px-2 py-0.5 text-[11px] font-medium sm:inline-block ${sourceAccent}`}>
                 {sourceLabel}
               </span>
+              {snapshot && snapshot.timeline_kind === 'experimental_rebirth' && (
+                <span className="hidden rounded border border-[#3B82A6]/50 bg-[#3B82A6]/20 px-2 py-0.5 text-[11px] font-medium text-[#57b8d8] md:inline-block">
+                  {t.timelineExperimental}
+                </span>
+              )}
             </div>
             <p className="hidden truncate text-[11px] text-[#9FB0C3] lg:block">{t.appSubtitle}</p>
           </div>
         </div>
 
-        {/* Zone 2: World Clock & Live KPIs (strictly separated Real vs Simulated Time) */}
+        {/* Zone 2: World Clock & Live KPIs */}
         {snapshot && (
           <div className="order-3 flex w-full flex-wrap items-center justify-start gap-x-4 gap-y-1 border-t border-white/5 pt-1.5 text-xs lg:order-2 lg:w-auto lg:border-t-0 lg:pt-0">
             <div className="flex items-center gap-1.5">
@@ -134,15 +153,36 @@ export default function TopBar({
           </div>
         )}
 
-        {/* Zone 3: Actions & Preferences */}
+        {/* Zone 3: Actions & 4-Tier Quality Selector */}
         <div className="order-2 flex items-center gap-1.5 lg:order-3">
+          {liveApiAvailable && (
+            <button
+              type="button"
+              disabled={creatingLiveWorld}
+              onClick={onStartLiveWorld}
+              className="flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-50"
+            >
+              <Play className="h-3.5 w-3.5" />
+              <span className="hidden xl:inline">{t.newWorldBtn}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onOpenMultiImporter}
+            className="flex items-center gap-1.5 rounded border border-[#D99B26]/50 bg-[#D99B26]/15 px-2.5 py-1.5 text-xs font-medium text-[#F2BE49] transition hover:bg-[#D99B26]/25"
+          >
+            <FolderOpen className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">{t.multiImportBtn}</span>
+          </button>
+
           <button
             type="button"
             onClick={onUploadClick}
-            className="flex items-center gap-1.5 rounded border border-[#D99B26]/50 bg-[#D99B26]/15 px-2.5 py-1.5 text-xs font-medium text-[#F2BE49] transition hover:bg-[#D99B26]/25"
+            title={t.uploadSnapshotBtn}
+            className="flex items-center gap-1 rounded border border-white/10 bg-[#18212C] px-2 py-1.5 text-xs text-[#9FB0C3] transition hover:border-white/25 hover:text-[#E6EDF3]"
           >
             <Upload className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{t.uploadSnapshotBtn}</span>
           </button>
 
           <button
@@ -154,17 +194,32 @@ export default function TopBar({
             <RefreshCw className="h-3.5 w-3.5" />
           </button>
 
-          <button
-            type="button"
-            onClick={onToggleQuality}
-            title={quality === 'high' ? t.qualityHigh : t.qualityLow}
-            className="flex items-center gap-1 rounded border border-white/10 bg-[#18212C] px-2 py-1.5 text-xs text-[#9FB0C3] transition hover:border-white/25 hover:text-[#E6EDF3]"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            <span className="hidden md:inline">
-              {quality === 'high' ? t.qualityHigh : t.qualityLow}
-            </span>
-          </button>
+          <div className="flex items-center gap-1 rounded border border-white/10 bg-[#18212C] px-1.5 py-1 text-xs">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-[#9FB0C3]" />
+            <select
+              value={quality}
+              onChange={(e) => onChangeQuality(e.target.value as QualityPreset)}
+              className="bg-transparent text-xs text-[#E6EDF3] focus:outline-none"
+            >
+              <option value="low" className="bg-[#121821]">
+                {t.qualityLow}
+              </option>
+              <option value="medium" className="bg-[#121821]">
+                {t.qualityMedium}
+              </option>
+              <option value="high" className="bg-[#121821]">
+                {t.qualityHigh}
+              </option>
+              <option value="ultra" className="bg-[#121821]">
+                {t.qualityUltra}
+              </option>
+            </select>
+            {fps > 0 && (
+              <span className="hidden border-s border-white/10 ps-1.5 font-mono text-[10px] tabular-nums text-[#9FB0C3] md:inline">
+                {fps} {t.fpsLabel}
+              </span>
+            )}
+          </div>
 
           <button
             type="button"

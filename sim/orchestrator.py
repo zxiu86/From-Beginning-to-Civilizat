@@ -6,6 +6,7 @@ import logging
 import random
 import signal
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -41,8 +42,18 @@ class SimulationEngine:
         rng: random.Random,
         backend_name: str,
         timeline_series: Optional[List[dict]] = None,
+        timeline_id: Optional[str] = None,
+        parent_timeline_id: Optional[str] = None,
+        timeline_kind: str = "original",
+        branch_point_tick: Optional[int] = None,
+        rebirth_records: Optional[List[dict]] = None,
     ) -> None:
         self.world_id = world_id
+        self.timeline_id = timeline_id or str(uuid.uuid4())
+        self.parent_timeline_id = parent_timeline_id
+        self.timeline_kind = timeline_kind
+        self.branch_point_tick = branch_point_tick
+        self.rebirth_records: List[dict] = list(rebirth_records or [])
         self.config = config
         self.clock = clock
         self.world = world
@@ -127,6 +138,11 @@ class SimulationEngine:
             history=history,
             rng=rng,
             backend_name=backend_name,
+            timeline_id=str(uuid.uuid4()),
+            parent_timeline_id=None,
+            timeline_kind="original",
+            branch_point_tick=None,
+            rebirth_records=[],
         )
         engine._record_timeline_point()
         return engine
@@ -163,6 +179,11 @@ class SimulationEngine:
             rng=rng,
             backend_name=backend_name,
             timeline_series=manifest.get("restored_timeline_series", []),
+            timeline_id=manifest.get("timeline_id"),
+            parent_timeline_id=manifest.get("parent_timeline_id"),
+            timeline_kind=manifest.get("timeline_kind", "original"),
+            branch_point_tick=manifest.get("branch_point_tick"),
+            rebirth_records=manifest.get("restored_rebirth_records", []),
         )
 
     def install_signal_handlers(self) -> None:
@@ -265,6 +286,8 @@ class SimulationEngine:
                     reward=reward,
                     value_est=val_est,
                     max_buffer=self.config.max_experience_buffer,
+                    tick=tick,
+                    context_tag=self.agents._infer_current_context(ag, perc),
                 )
                 if (
                     ag.is_alive
@@ -336,7 +359,7 @@ class SimulationEngine:
             "discovered_techs": dict(self.agents.discovered_techs),
         }
 
-    def save_checkpoint(self, checkpoint_dir: Path) -> dict:
+    def save_checkpoint(self, checkpoint_dir: Path, truth_archive_path: Optional[Path] = None) -> dict:
         return PersistenceEngine.save_checkpoint(
             checkpoint_dir=checkpoint_dir,
             world_id=self.world_id,
@@ -350,7 +373,13 @@ class SimulationEngine:
             rng=self.rng,
             backend_name=self.backend_name,
             metrics_snapshot=self.current_metrics(),
+            truth_archive_path=truth_archive_path,
             timeline_series=self.timeline_series,
+            timeline_id=self.timeline_id,
+            parent_timeline_id=self.parent_timeline_id,
+            timeline_kind=self.timeline_kind,
+            branch_point_tick=self.branch_point_tick,
+            rebirth_records=self.rebirth_records,
         )
 
     def run(

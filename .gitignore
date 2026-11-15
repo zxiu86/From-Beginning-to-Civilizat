@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-dev/
 out/
 coverage/
 .DS_Store
@@ -15,6 +16,7 @@ __pycache__/
 .venv/
 venv/
 runs/
+.sim_runs/
 checkpoints/
 artifacts_local/
 *.db

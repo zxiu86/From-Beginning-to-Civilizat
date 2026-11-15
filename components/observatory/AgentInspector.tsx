@@ -8,6 +8,7 @@ import {
   HeartPulse,
   MessageSquare,
   Navigation,
+  RotateCcw,
   Search,
   Skull,
   Users,
@@ -66,6 +67,11 @@ export default function AgentInspector({
   };
 
   const livingAgent: LivingAgentFull | null = agent && agent.is_alive ? agent : null;
+  const showRebirthCard =
+    agent !== null &&
+    (agent.rebirth_count > 0 ||
+      agent.original_death_tick !== null ||
+      agent.death_penalty_record !== null);
 
   return (
     <div className="space-y-4 text-xs text-[#E6EDF3]">
@@ -164,6 +170,77 @@ export default function AgentInspector({
             </div>
           </div>
 
+          {/* Rebirth & Death-Penalty Learning Card */}
+          {showRebirthCard && (
+            <div className="space-y-2 rounded border border-[#3B82A6]/50 bg-[#3B82A6]/10 p-3">
+              <h3 className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>{t.rebirthSection}</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="text-[#9FB0C3]">{t.rebirthCountLabel}</div>
+                  <div className="font-mono font-bold tabular-nums">{agent.rebirth_count}</div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="text-[#9FB0C3]">{t.rebirthTickLabel}</div>
+                  <div className="font-mono font-bold tabular-nums">
+                    {agent.rebirth_tick !== null ? `${t.tickUnit} ${agent.rebirth_tick}` : '—'}
+                  </div>
+                </div>
+              </div>
+              {agent.original_death_tick !== null && (
+                <div className="rounded bg-[#121821] p-2 text-[11px]">
+                  <span className="text-[#9FB0C3]">{t.originalDeathLabel}: </span>
+                  <span className="font-mono text-[#E6EDF3]">
+                    {t.tickUnit} {agent.original_death_tick} ·{' '}
+                    {agent.original_cause_of_death
+                      ? t.causes[agent.original_cause_of_death] ?? agent.original_cause_of_death
+                      : '—'}
+                  </span>
+                </div>
+              )}
+              {agent.brain_fingerprint && (
+                <div className="rounded bg-[#121821] p-2 font-mono text-[10px] text-[#9FB0C3]">
+                  {t.brainFingerprintLabel}:{' '}
+                  <span className="text-[#E6EDF3]">{agent.brain_fingerprint}</span>
+                </div>
+              )}
+              {agent.death_penalty_record && (
+                <div className="space-y-1 rounded bg-[#121821] p-2 text-[11px]">
+                  <div className="flex justify-between">
+                    <span className="text-[#9FB0C3]">{t.deathPenaltyLabel}</span>
+                    <span
+                      className={
+                        agent.death_penalty_record.applied
+                          ? 'font-semibold text-emerald-300'
+                          : 'text-[#9FB0C3]'
+                      }
+                    >
+                      {agent.death_penalty_record.applied ? 'applied' : 'none'}
+                    </span>
+                  </div>
+                  {agent.death_penalty_record.perceived_cues &&
+                    agent.death_penalty_record.perceived_cues.length > 0 && (
+                      <div className="text-[10px] text-[#9FB0C3]">
+                        {t.evidenceCuesLabel}:{' '}
+                        <span className="font-mono text-[#E6EDF3]">
+                          {agent.death_penalty_record.perceived_cues.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  {agent.death_penalty_record.pre_weight_fingerprint &&
+                    agent.death_penalty_record.post_weight_fingerprint && (
+                      <div className="font-mono text-[10px] text-[#9FB0C3]">
+                        {agent.death_penalty_record.pre_weight_fingerprint} →{' '}
+                        {agent.death_penalty_record.post_weight_fingerprint}
+                      </div>
+                    )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Vitals OR Death Record */}
           {livingAgent ? (
             <div className="space-y-2.5 rounded border border-white/10 bg-[#18212C] p-3">
@@ -198,6 +275,7 @@ export default function AgentInspector({
                     {livingAgent.last_emitted_token !== null
                       ? `T-${livingAgent.last_emitted_token}`
                       : '—'}
+                    {livingAgent.carried_item ? ` · [${livingAgent.carried_item}]` : ''}
                   </div>
                 </div>
               </div>

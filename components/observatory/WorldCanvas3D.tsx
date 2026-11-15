@@ -35,6 +35,7 @@ interface WorldCanvas3DProps {
   flyToSignal: number;
   onSelectAgent: (agentId: number | null) => void;
   onSoftwareGlDetected: (detected: boolean) => void;
+  onFpsUpdate?: (fps: number) => void;
 }
 
 const _raycaster = new THREE.Raycaster();
@@ -65,24 +66,28 @@ export default function WorldCanvas3D({
   flyToSignal,
   onSelectAgent,
   onSoftwareGlDetected,
+  onFpsUpdate,
 }: WorldCanvas3DProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [contextLost, setContextLost] = useState(false);
 
-  // Latest props in refs for animation loop without tearing down WebGL context
   const onSelectRef = useRef(onSelectAgent);
+  const onFpsRef = useRef(onFpsUpdate);
   const followRef = useRef(followAgent);
   const selectedIdRef = useRef(selectedAgentId);
   const fpvAgentRef = useRef(fpvAgent);
   const snapshotRef = useRef(snapshot);
+  const qualityRef = useRef(quality);
 
   useEffect(() => {
     onSelectRef.current = onSelectAgent;
+    onFpsRef.current = onFpsUpdate;
     followRef.current = followAgent;
     selectedIdRef.current = selectedAgentId;
     fpvAgentRef.current = fpvAgent;
     snapshotRef.current = snapshot;
-  }, [onSelectAgent, followAgent, selectedAgentId, fpvAgent, snapshot]);
+    qualityRef.current = quality;
+  }, [onSelectAgent, onFpsUpdate, followAgent, selectedAgentId, fpvAgent, snapshot, quality]);
 
   const runtimeRef = useRef<{
     scene: THREE.Scene;
@@ -101,34 +106,35 @@ export default function WorldCanvas3D({
     lastTerrainWorldKey: string;
   } | null>(null);
 
-  // Initialize WebGL Scene once per quality change
+  // Initialize WebGL Scene once per quality tier change
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
-
-    const highQuality = quality === 'high';
 
     const probeCanvas = document.createElement('canvas');
     const probeGl = probeCanvas.getContext('webgl2') || probeCanvas.getContext('webgl');
     const isSoftwareGl = probeGl ? detectSoftwareGl(probeGl) : false;
     onSoftwareGlDetected(isSoftwareGl);
 
-    const effectiveShadow = highQuality && !isSoftwareGl;
+    const castShadows = quality !== 'low' && !isSoftwareGl;
     const width = Math.max(320, container.clientWidth);
     const height = Math.max(240, container.clientHeight);
 
+    const maxDpr =
+      quality === 'ultra' ? 2 : quality === 'high' ? 1.65 : quality === 'medium' ? 1.25 : 1;
+
     const renderer = new THREE.WebGLRenderer({
-      antialias: highQuality && !isSoftwareGl,
+      antialias: (quality === 'high' || quality === 'ultra') && !isSoftwareGl,
       powerPreference: 'high-performance',
     });
     renderer.setPixelRatio(
-      isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, highQuality ? 2 : 1.25),
+      isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, maxDpr),
     );
     renderer.setSize(width, height);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.shadowMap.enabled = effectiveShadow;
+    renderer.shadowMap.enabled = castShadows;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     container.innerHTML = '';
@@ -136,7 +142,6 @@ export default function WorldCanvas3D({
 
     const scene = new THREE.Scene();
 
-    // Subtle procedural IBL using RoomEnvironment
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envTex;
@@ -153,11 +158,10 @@ export default function WorldCanvas3D({
     controls.target.set(0, 40 * ELEVATION_SCALE, 0);
     controls.update();
 
-    const rig = createAtmosphereRig(scene, effectiveShadow);
+    const rig = createAtmosphereRig(scene, quality, !isSoftwareGl);
     const actors = new ActorsManager();
     scene.add(actors.livingGroup, actors.deceasedGroup, actors.faunaGroup);
 
-    // FPV Sensory Horizon Ring (placed at exact vision_radius_m)
     const fpvRingGeo = new THREE.RingGeometry(0.985, 1.0, 64);
     fpvRingGeo.rotateX(-Math.PI / 2);
     const fpvRingMat = new THREE.MeshBasicMaterial({
@@ -170,7 +174,6 @@ export default function WorldCanvas3D({
     fpvHorizonRing.visible = false;
     scene.add(fpvHorizonRing);
 
-    // Historical Event Replay Beacon
     const replayBeacon = new THREE.Group();
     const rRingGeo = new THREE.RingGeometry(14, 18, 32);
     rRingGeo.rotateX(-Math.PI / 2);
@@ -222,8 +225,8 @@ export default function WorldCanvas3D({
     };
     const onPointerUp = (e: PointerEvent) => {
       const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
-      if (dist > 6) return; // Dragged camera, not a click
-      if (fpvAgentRef.current) return; // Do not switch agent accidentally mid-FPV click
+      if (dist > 6) return;
+      if (fpvAgentRef.current) return;
 
       const rect = renderer.domElement.getBoundingClientRect();
       _ndc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -271,17 +274,27 @@ export default function WorldCanvas3D({
     let prevTime = performance.now();
     let lastDraw = 0;
     const startTime = prevTime;
+    let fpsFrames = 0;
+    let fpsWindowStart = prevTime;
 
     const animate = (now: number) => {
       rafId = requestAnimationFrame(animate);
       if (isSoftwareGl && now - lastDraw < 80) return;
       lastDraw = now;
 
+      fpsFrames++;
+      if (now - fpsWindowStart >= 1000) {
+        const measuredFps = Math.round((fpsFrames * 1000) / (now - fpsWindowStart));
+        onFpsRef.current?.(measuredFps);
+        fpsFrames = 0;
+        fpsWindowStart = now;
+      }
+
       const dt = Math.min(0.1, (now - prevTime) / 1000);
       prevTime = now;
       const elapsedS = (now - startTime) / 1000;
 
-      actors.tick(elapsedS, dt);
+      actors.tick(elapsedS, dt, camera, qualityRef.current);
       rt.terrainBundle?.tick(elapsedS);
       animateAtmosphere(rt.rig, dt);
 
@@ -346,8 +359,9 @@ export default function WorldCanvas3D({
     const rt = runtimeRef.current;
     if (!rt) return;
 
+    const castShadows = quality !== 'low';
+
     if (!snapshot) {
-      // Build subtle calm barren backdrop terrain when in empty state
       const emptyKey = `empty_${quality}`;
       if (rt.lastTerrainWorldKey !== emptyKey) {
         if (rt.terrainBundle) {
@@ -360,12 +374,12 @@ export default function WorldCanvas3D({
           rt.propsBundle.dispose();
           rt.propsBundle = null;
         }
-        const built = buildTerrainGroup(null, 'spring', quality === 'high');
+        const built = buildTerrainGroup(null, 'spring', quality);
         rt.terrainBundle = built;
         rt.scene.add(built.group);
         rt.lastTerrainWorldKey = emptyKey;
       }
-      rt.actors.reconcile([], [], [], null, quality === 'high');
+      rt.actors.reconcile([], [], [], null, castShadows);
       applyWeatherAndLighting(
         rt.scene,
         rt.rig,
@@ -385,7 +399,7 @@ export default function WorldCanvas3D({
       return;
     }
 
-    const terrainKey = `${snapshot.world_id}_${snapshot.clock.tick}_${snapshot.clock.season}_${quality}`;
+    const terrainKey = `${snapshot.world_id}_${snapshot.timeline_id}_${snapshot.clock.tick}_${snapshot.clock.season}_${quality}`;
     if (rt.lastTerrainWorldKey !== terrainKey) {
       if (rt.terrainBundle) {
         rt.scene.remove(rt.terrainBundle.group);
@@ -396,11 +410,7 @@ export default function WorldCanvas3D({
         rt.propsBundle.dispose();
       }
 
-      const built = buildTerrainGroup(
-        snapshot.world_terrain,
-        snapshot.clock.season,
-        quality === 'high',
-      );
+      const built = buildTerrainGroup(snapshot.world_terrain, snapshot.clock.season, quality);
       rt.terrainBundle = built;
       rt.scene.add(built.group);
 
@@ -410,7 +420,7 @@ export default function WorldCanvas3D({
         snapshot.crime_and_stability.exchange_hubs,
         snapshot.engine_capabilities.has_shelter_tech_milestone,
         snapshot.clock.season,
-        quality === 'high',
+        quality,
       );
       rt.propsBundle = props;
       rt.scene.add(props.group);
@@ -422,7 +432,7 @@ export default function WorldCanvas3D({
       snapshot.deceased_agents_archive,
       snapshot.ecosystem.fauna,
       snapshot.world_terrain,
-      quality === 'high',
+      castShadows,
     );
   }, [snapshot, quality]);
 
@@ -456,12 +466,10 @@ export default function WorldCanvas3D({
         fpvAgent.local_perception.vision_radius_m,
       );
 
-      // Position sensory boundary ring at exact engine vision_radius_m
       rt.fpvHorizonRing.visible = true;
       rt.fpvHorizonRing.position.set(wx, wy + 0.5, wz);
       rt.fpvHorizonRing.scale.setScalar(fpvAgent.local_perception.vision_radius_m);
 
-      // Move camera to eye height
       rt.controls.maxPolarAngle = Math.PI * 0.72;
       rt.controls.minDistance = 0.5;
       rt.controls.maxDistance = 6;

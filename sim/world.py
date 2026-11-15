@@ -271,12 +271,18 @@ class WorldEngine:
 
     def harvest_food(self, idx: int, amount: float) -> float:
         taken = min(self.food_flora[idx], max(0.0, amount))
-        self.food_flora[idx] = round(self.food_flora[idx] - taken, 4)
+        new_val = round(self.food_flora[idx] - taken, 4)
+        self.food_flora[idx] = new_val
+        if taken > 0.2 and new_val < 0.25 * max(0.1, self.food_max[idx]):
+            self.fertility[idx] = max(0.04, round(self.fertility[idx] - 0.004 * taken, 4))
         return taken
 
     def harvest_wood(self, idx: int, amount: float) -> float:
         taken = min(self.wood_flora[idx], max(0.0, amount))
-        self.wood_flora[idx] = round(self.wood_flora[idx] - taken, 4)
+        new_val = round(self.wood_flora[idx] - taken, 4)
+        self.wood_flora[idx] = new_val
+        if taken > 0.2 and new_val < 0.2 * max(0.1, self.wood_max[idx]):
+            self.fertility[idx] = max(0.04, round(self.fertility[idx] - 0.003 * taken, 4))
         return taken
 
     def harvest_herb(self, idx: int, amount: float) -> float:
@@ -413,6 +419,10 @@ class WorldEngine:
                     self.herb_flora[idx] + 0.012 * self.fertility[idx] * m * season_growth * drought_penalty,
                 )
 
+            # Organic soil fertility recovery when vegetation & moisture coexist
+            if m > 0.38 and self.food_flora[idx] > 1.0 and self.fertility[idx] < 0.85:
+                self.fertility[idx] = min(0.85, self.fertility[idx] + 0.0005 * m * season_growth * drought_penalty)
+
         # Rainfall gently recharges natural springs (still dries up during drought or over-extraction)
         if self.weather.rainfall_mm > 0.5 and self.spring_cells:
             recharge = min(8.0, self.weather.rainfall_mm * 0.45)
@@ -430,7 +440,7 @@ class WorldEngine:
 
         for f in living_fauna:
             f.age_ticks += 1
-            # Movement: predators actively stalk nearby herbivores when hungry
+            # Movement: predators stalk nearby herbivores when hungry; herbivores drift toward greener patches
             step_dist = 35.0 if f.species == "herbivore" else 55.0
             angle = rng.uniform(0.0, 2.0 * math.pi)
             if f.species == "predator" and f.energy < 0.68 and herbivores:
@@ -444,10 +454,26 @@ class WorldEngine:
                             nearest_prey = h
                 if nearest_prey is not None and nearest_d > 5.0:
                     angle = math.atan2(nearest_prey.y - f.y, nearest_prey.x - f.x) + rng.uniform(-0.35, 0.35)
+            elif f.species == "herbivore" and f.energy < 0.6:
+                c_here, r_here = self.cell_coords_at(f.x, f.y)
+                best_food = self.food_flora[r_here * self.cols + c_here]
+                best_dir: Optional[float] = None
+                for dr in (-2, 0, 2):
+                    rr = r_here + dr
+                    if 0 <= rr < self.rows:
+                        for dc in (-2, 0, 2):
+                            cc = c_here + dc
+                            if 0 <= cc < self.cols and self.water[rr * self.cols + cc] < 70.0:
+                                val = self.food_flora[rr * self.cols + cc]
+                                if val > best_food + 0.5:
+                                    best_food = val
+                                    best_dir = math.atan2(dr, dc)
+                if best_dir is not None:
+                    angle = best_dir + rng.uniform(-0.25, 0.25)
 
             nx, ny = self.clamp_coords(f.x + math.cos(angle) * step_dist, f.y + math.sin(angle) * step_dist)
             nidx = self.cell_index_at(nx, ny)
-            if self.water[nidx] < 70.0:
+            if self.water[nidx] < 70.0 and self.slope[nidx] <= 1.45:
                 f.x, f.y = nx, ny
 
             cidx = self.cell_index_at(f.x, f.y)

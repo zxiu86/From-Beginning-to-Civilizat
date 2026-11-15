@@ -13,6 +13,7 @@ import {
   Skull,
   Users,
 } from 'lucide-react';
+import {safeFixed} from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {AnyAgentRecord, LivingAgentFull} from '@/lib/observatory/types';
 
@@ -137,7 +138,7 @@ export default function AgentInspector({
 
             <div className="mt-2 grid grid-cols-3 gap-2 font-mono text-[11px] tabular-nums text-[#9FB0C3]">
               <div>
-                {agent.age_years.toFixed(1)} {t.ageYears}
+                {safeFixed(agent.age_years, 1)} {t.ageYears}
               </div>
               <div>
                 {t.genShort} {agent.generation}
@@ -359,7 +360,7 @@ export default function AgentInspector({
               {Object.entries(agent.traits).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-[11px]">
                   <span className="text-[#9FB0C3]">{t.traits[k] ?? k}</span>
-                  <span className="font-mono tabular-nums">{v.toFixed(2)}</span>
+                  <span className="font-mono tabular-nums">{safeFixed(v, 2)}</span>
                 </div>
               ))}
             </div>
@@ -369,7 +370,7 @@ export default function AgentInspector({
               {Object.entries(agent.skills).map(([k, v]) => (
                 <div key={k} className="flex justify-between text-[11px]">
                   <span className="text-[#9FB0C3]">{t.skills[k] ?? k}</span>
-                  <span className="font-mono tabular-nums text-[#F2BE49]">{v.toFixed(2)}</span>
+                  <span className="font-mono tabular-nums text-[#F2BE49]">{safeFixed(v, 2)}</span>
                 </div>
               ))}
             </div>
@@ -390,7 +391,7 @@ export default function AgentInspector({
                         key={k}
                         className="rounded border border-white/10 bg-[#121821] px-2 py-1 font-mono text-[11px] tabular-nums"
                       >
-                        {k}: {val.toFixed(1)}
+                        {k}: {safeFixed(val, 1)}
                       </div>
                     ))}
                 </div>
@@ -423,7 +424,7 @@ export default function AgentInspector({
                           <span className="font-mono text-[#57b8d8]">T-{tok}</span>
                           {topCtx && (
                             <span className="text-[#9FB0C3]">
-                              {t.contexts[topCtx[0]] ?? topCtx[0]} ({topCtx[1].toFixed(2)})
+                              {t.contexts[topCtx[0]] ?? topCtx[0]} ({safeFixed(topCtx[1], 2)})
                             </span>
                           )}
                         </div>
@@ -450,7 +451,7 @@ export default function AgentInspector({
                   >
                     <span className="font-mono text-[#F2BE49]">#{tie.agent_id}</span>
                     <span className="font-mono tabular-nums text-[#9FB0C3]">
-                      F:{tie.familiarity.toFixed(2)} · T:{tie.trust.toFixed(2)}
+                      F:{safeFixed(tie.familiarity, 2)} · T:{safeFixed(tie.trust, 2)}
                     </span>
                   </button>
                 ))}
@@ -473,7 +474,7 @@ export default function AgentInspector({
                       </span>
                       <span className={mem.valence >= 0 ? 'text-emerald-400' : 'text-red-400'}>
                         {mem.valence >= 0 ? '+' : ''}
-                        {mem.valence.toFixed(2)}
+                        {safeFixed(mem.valence, 2)}
                       </span>
                     </div>
                     <div className="mt-0.5 text-[#E6EDF3]">{mem.note || mem.event_type}</div>
@@ -497,7 +498,7 @@ export default function AgentInspector({
                   >
                     <span className="text-[#E6EDF3]">{sm.resource_kind}</span>
                     <span className="text-[#9FB0C3]">
-                      ({Math.round(sm.x)}, {Math.round(sm.y)}) · {sm.estimated_amount.toFixed(1)}
+                      ({Math.round(sm.x)}, {Math.round(sm.y)}) · {safeFixed(sm.estimated_amount, 1)}
                     </span>
                   </div>
                 ))}

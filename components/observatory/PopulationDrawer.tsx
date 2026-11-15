@@ -1,7 +1,8 @@
 'use client';
 
 import React, {useMemo, useState} from 'react';
-import {GitBranch, Search, Skull, UserCheck} from 'lucide-react';
+import {GitBranch, RefreshCw, Search, Skull, UserCheck} from 'lucide-react';
+import {safeFixed} from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {
   AnyAgentRecord,
@@ -99,6 +100,77 @@ export default function PopulationDrawer({
           })}
         </div>
       </div>
+
+      {/* Automatic Population Recovery Cycles */}
+      {snapshot.recovery_state && (
+        <div className="rounded border border-white/10 bg-[#18212C] p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>{t.recoverySectionTitle}</span>
+            </h3>
+            <span className="font-mono text-[11px] text-[#F2BE49]">
+              {t.recoveryCurrentCycle}: #{snapshot.recovery_state.current_cycle_number}
+            </span>
+          </div>
+          {snapshot.recovery_state.population_recovery_history.length === 0 ? (
+            <div className="text-[11px] text-[#9FB0C3]">{t.recoveryNoCycles}</div>
+          ) : (
+            <div className="max-h-48 space-y-2 overflow-y-auto">
+              {[...snapshot.recovery_state.population_recovery_history].reverse().map((cyc) => (
+                <div
+                  key={`${cyc.cycle_number}-${cyc.recovery_tick}`}
+                  className="space-y-1 rounded border border-white/5 bg-[#121821] p-2 text-[11px]"
+                >
+                  <div className="flex items-center justify-between font-mono">
+                    <span className="font-bold text-[#F2BE49]">
+                      Cycle #{cyc.cycle_number} ({cyc.recovery_date})
+                    </span>
+                    <span
+                      className={
+                        cyc.outcome === 're_extinct'
+                          ? 'text-red-300'
+                          : cyc.outcome === 'grew'
+                            ? 'text-emerald-300'
+                            : 'text-[#57b8d8]'
+                      }
+                    >
+                      {cyc.outcome}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[#9FB0C3]">
+                    <span>
+                      {t.recoveryFoundersLabel}:{' '}
+                      <strong className="font-mono text-[#E6EDF3]">
+                        {cyc.new_agent_ids.map((id) => `#${id}`).join(', ') || '—'}
+                      </strong>
+                    </span>
+                    <span>
+                      {t.livingLabel}:{' '}
+                      <strong className="font-mono text-[#E6EDF3]">{cyc.post_recovery_population}</strong>
+                    </span>
+                    <span>
+                      {t.recoveryBirthsLabel}:{' '}
+                      <strong className="font-mono text-emerald-300">{cyc.subsequent_births}</strong>
+                    </span>
+                    <span>
+                      {t.recoveryDurationLabel}:{' '}
+                      <strong className="font-mono text-[#E6EDF3]">
+                        {cyc.survival_duration_ticks} {t.tickUnit}
+                      </strong>
+                    </span>
+                  </div>
+                  {cyc.pre_recovery_archive && (
+                    <div className="truncate font-mono text-[10px] text-[#9FB0C3]/80">
+                      {t.recoveryArchiveLabel}: {cyc.pre_recovery_archive}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Interactive Family Tree */}
       <div className="rounded border border-white/10 bg-[#18212C] p-3">
@@ -223,7 +295,7 @@ export default function PopulationDrawer({
                 </span>
               </div>
               <div className="font-mono text-[11px] tabular-nums text-[#9FB0C3]">
-                {ag.age_years.toFixed(1)} {t.ageYears}
+                {safeFixed(ag.age_years, 1)} {t.ageYears}
               </div>
             </button>
           ))}

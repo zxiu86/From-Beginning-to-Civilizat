@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import {Activity, Clock, Droplets} from 'lucide-react';
+import {Activity, Brain, Clock, Droplets} from 'lucide-react';
 import {formatDurationSeconds} from '@/lib/observatory/adapter';
+import {safeFixed, safeFormatDate} from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {ObservatorySnapshot, TimelinePoint} from '@/lib/observatory/types';
 
@@ -116,9 +117,40 @@ export default function TelemetryDrawer({t, snapshot}: TelemetryDrawerProps) {
           <span>schema {snapshot.export_schema_version}</span>
         </div>
         <div className="font-mono text-[10px] text-[#9FB0C3]">
-          {t.snapshotTimeLabel}: {new Date(snapshot.exported_at_utc).toLocaleString()}
+          {t.snapshotTimeLabel}: {safeFormatDate(snapshot.exported_at_utc)}
         </div>
       </div>
+
+      {/* Neural Learning Telemetry */}
+      {snapshot.learning_telemetry && (
+        <div className="rounded border border-white/10 bg-[#18212C] p-3">
+          <h3 className="mb-2 flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+            <Brain className="h-3.5 w-3.5" />
+            <span>{t.learningSectionTitle}</span>
+          </h3>
+          <div className="grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums">
+            <div className="rounded bg-[#121821] p-2">
+              <div className="font-sans text-[10px] text-[#9FB0C3]">{t.learningUpdates}</div>
+              <div>
+                {safeFixed(snapshot.learning_telemetry.avg_updates_per_agent, 1)} (
+                {snapshot.learning_telemetry.agents_with_updates}/{snapshot.learning_telemetry.living_brains_count})
+              </div>
+            </div>
+            <div className="rounded bg-[#121821] p-2">
+              <div className="font-sans text-[10px] text-[#9FB0C3]">{t.learningTdError}</div>
+              <div>{safeFixed(snapshot.learning_telemetry.mean_td_error, 4)}</div>
+            </div>
+            <div className="rounded bg-[#121821] p-2">
+              <div className="font-sans text-[10px] text-[#9FB0C3]">{t.learningEntropy}</div>
+              <div>{safeFixed(snapshot.learning_telemetry.mean_policy_entropy, 4)}</div>
+            </div>
+            <div className="rounded bg-[#121821] p-2">
+              <div className="font-sans text-[10px] text-[#9FB0C3]">{t.learningReward}</div>
+              <div>{safeFixed(snapshot.learning_telemetry.mean_recent_reward, 4)}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Ecosystem Readings */}
       <div className="rounded border border-white/10 bg-[#18212C] p-3">
@@ -129,11 +161,11 @@ export default function TelemetryDrawer({t, snapshot}: TelemetryDrawerProps) {
         <div className="grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums">
           <div className="rounded bg-[#121821] p-2">
             <div className="font-sans text-[10px] text-[#9FB0C3]">{t.foodBiomass}</div>
-            <div>{eco.total_food_biomass.toFixed(0)}</div>
+            <div>{safeFixed(eco.total_food_biomass, 0)}</div>
           </div>
           <div className="rounded bg-[#121821] p-2">
             <div className="font-sans text-[10px] text-[#9FB0C3]">{t.woodBiomass}</div>
-            <div>{eco.total_wood_biomass.toFixed(0)}</div>
+            <div>{safeFixed(eco.total_wood_biomass, 0)}</div>
           </div>
           <div className="rounded bg-[#121821] p-2">
             <div className="font-sans text-[10px] text-[#9FB0C3]">
@@ -145,7 +177,7 @@ export default function TelemetryDrawer({t, snapshot}: TelemetryDrawerProps) {
           </div>
           <div className="rounded bg-[#121821] p-2">
             <div className="font-sans text-[10px] text-[#9FB0C3]">{t.soilMoisture}</div>
-            <div>{(eco.avg_soil_moisture * 100).toFixed(1)}%</div>
+            <div>{safeFixed(eco.avg_soil_moisture * 100, 1)}%</div>
           </div>
         </div>
       </div>

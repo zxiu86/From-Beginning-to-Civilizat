@@ -293,6 +293,88 @@ class AgentEngine:
             )
             self.all_agents[aid] = ag
 
+    def spawn_recovery_founders(
+        self,
+        tick: int,
+        count: int,
+        world: "WorldEngine",
+        rng: random.Random,
+        obs_dim: int,
+        hidden_dim: int,
+        num_actions: int,
+        num_signals: int,
+        learning_rate: float,
+    ) -> List[Agent]:
+        """
+        Automatic Population Recovery (post-total-extinction only):
+        Spawn brand-new independent founders (half female, half male; default 2F + 2M)
+        with fresh unique IDs, fresh independent neural brains, zero inherited memories/ties,
+        and no alteration of terrain, climate, depleted resources, or historical artifacts.
+        """
+        if count <= 0:
+            return []
+
+        # Choose a passable, dry anchor zone with surviving terrain access so founders can encounter one another
+        anchor_x, anchor_y = world.width_m * 0.5, world.height_m * 0.5
+        best_score = -1.0
+        for _ in range(140):
+            tx = rng.uniform(140.0, world.width_m - 140.0)
+            ty = rng.uniform(140.0, world.height_m - 140.0)
+            cidx = world.cell_index_at(tx, ty)
+            if world.water[cidx] < 50.0 and world.slope[cidx] <= 1.2:
+                has_w = 1.0 if world.has_nearby_water(tx, ty, 120.0) is not None else 0.2
+                score = has_w + 0.1 * min(5.0, world.food_flora[cidx])
+                if score > best_score:
+                    best_score = score
+                    anchor_x, anchor_y = tx, ty
+                    if has_w >= 1.0 and world.food_flora[cidx] > 0.5:
+                        break
+
+        spawned: List[Agent] = []
+        for i in range(count):
+            fx, fy = anchor_x, anchor_y
+            for _ in range(30):
+                cand_x, cand_y = world.clamp_coords(
+                    anchor_x + rng.uniform(-55.0, 55.0),
+                    anchor_y + rng.uniform(-55.0, 55.0),
+                )
+                cidx = world.cell_index_at(cand_x, cand_y)
+                if world.water[cidx] < 50.0 and world.slope[cidx] <= 1.3:
+                    fx, fy = cand_x, cand_y
+                    break
+
+            aid = self.next_agent_id
+            self.next_agent_id += 1
+            brain = AgentBrain(
+                agent_id=aid,
+                obs_dim=obs_dim,
+                hidden_dim=hidden_dim,
+                num_actions=num_actions,
+                num_signals=num_signals,
+                learning_rate=learning_rate,
+                seed=rng.randint(1, 2_000_000_000),
+                require_torch=self.require_torch,
+            )
+            sex = "F" if (i % 2 == 0) else "M"
+            founder = Agent(
+                agent_id=aid,
+                sex=sex,
+                x=fx,
+                y=fy,
+                birth_tick=tick,
+                generation=0,
+                age_ticks=rng.randint(18 * 360, 24 * 360),
+                max_lifespan_ticks=rng.randint(18000, 27000),
+                inventory={"food": 2.0, "wood": 0.0, "stone": 0.0, "herb": 0.0, "tool": 0.0},
+                lexicon={},
+                traits=PersonalityTraits.random_init(rng),
+                memory=MemoryEngine(),
+                brain=brain,
+            )
+            self.all_agents[aid] = founder
+            spawned.append(founder)
+        return spawned
+
     def spawn_newborn(
         self,
         tick: int,
@@ -418,71 +500,106 @@ class AgentEngine:
 
     def compute_action_bias(self, agent: Agent, perc: "LocalPerception") -> List[float]:
         """
-        Homeostatic biological urges & strictly local sensory directional cues.
-        Neural weights still learn and drive individualized choices.
+        Internal homeostatic survival & reproductive drives grounded in strictly local cues
+        and this individual's own experiential memory (non-scripted, neural weights decide).
         """
         bias = [0.0] * len(ACTION_NAMES)
         food_dx, food_dy = perc.obs_vector[18], perc.obs_vector[19]
         water_dx, water_dy = perc.obs_vector[20], perc.obs_vector[21]
         near_dx, near_dy = perc.obs_vector[24], perc.obs_vector[25]
 
+        # Subtle experiential outcome learning bias from individual's own past rewards
+        for a_idx, a_name in enumerate(ACTION_NAMES):
+            bias[a_idx] += agent.memory.outcome_preference(a_name) * 0.5
+
         # Persistent exploration heading when blindly searching (avoids stationary E-W oscillation)
         phase = ((agent.agent_id * 37 + agent.age_ticks // 10) % 4)
         search_move = (1, 3, 2, 4)[phase]  # N, E, S, W sweep
 
-        # Thirst drive: drink ONLY if water is actually in reach; otherwise move toward sensed/remembered water
-        if agent.thirst > 0.35:
-            urgency = 1.45 if agent.thirst > 0.65 else 1.0
+        # SURVIVAL DRIVE 1: Hydration urgency from sensed/remembered water
+        if agent.thirst > 0.30:
+            urgency = 1.65 if agent.thirst > 0.62 else 1.05
             if perc.local_water > 0.25:
-                bias[6] += 5.2 * agent.thirst * urgency  # drink_water
+                bias[6] += 5.4 * agent.thirst * urgency  # drink_water
             else:
                 bias[6] -= 2.5
                 if abs(water_dx) > 0.02 or abs(water_dy) > 0.02:
-                    bias[3 if water_dx > 0 else 4] += 4.6 * agent.thirst * urgency * abs(water_dx)
-                    bias[2 if water_dy > 0 else 1] += 4.6 * agent.thirst * urgency * abs(water_dy)
+                    bias[3 if water_dx > 0 else 4] += 4.8 * agent.thirst * urgency * abs(water_dx)
+                    bias[2 if water_dy > 0 else 1] += 4.8 * agent.thirst * urgency * abs(water_dy)
                 else:
-                    bias[search_move] += 2.6 * agent.thirst * urgency
+                    bias[search_move] += 2.7 * agent.thirst * urgency
 
-        # Hunger drive: eat inventory or forage if local food exists; otherwise move toward sensed/remembered food
-        if agent.hunger > 0.38:
-            if agent.inventory.get("food", 0.0) >= 0.4:
-                bias[10] += 4.0 * agent.hunger  # eat_inventory
+        # SURVIVAL DRIVE 2: Nutrition urgency from inventory, local flora, or own memory
+        if agent.hunger > 0.34:
+            h_urg = 1.5 if agent.hunger > 0.65 else 1.0
+            if agent.inventory.get("food", 0.0) >= 0.35:
+                bias[10] += 4.3 * agent.hunger * h_urg  # eat_inventory
             elif perc.local_food > 0.25:
-                bias[5] += 3.6 * agent.hunger  # forage_food
+                bias[5] += 3.8 * agent.hunger * h_urg  # forage_food
             else:
                 bias[5] -= 1.5
                 if abs(food_dx) > 0.02 or abs(food_dy) > 0.02:
-                    bias[3 if food_dx > 0 else 4] += 3.2 * agent.hunger * abs(food_dx)
-                    bias[2 if food_dy > 0 else 1] += 3.2 * agent.hunger * abs(food_dy)
+                    bias[3 if food_dx > 0 else 4] += 3.5 * agent.hunger * h_urg * abs(food_dx)
+                    bias[2 if food_dy > 0 else 1] += 3.5 * agent.hunger * h_urg * abs(food_dy)
                 else:
-                    bias[search_move] += 1.6 * agent.hunger
+                    bias[search_move] += 1.8 * agent.hunger * h_urg
 
-        if agent.energy < 0.25:
-            bias[0] += 2.6  # rest
+        # SURVIVAL DRIVE 3: Self-recovery & hazard evasion (local predator or remembered danger cell)
+        if agent.energy < 0.25 or (agent.disease_load > 0.20 and agent.inventory.get("herb", 0.0) >= 0.3):
+            bias[0] += 2.6  # rest / heal
+        if perc.local_hazard_dist < 65.0 and (abs(perc.local_hazard_dx) > 0.02 or abs(perc.local_hazard_dy) > 0.02):
+            evade = 1.8 * (1.0 - perc.local_hazard_dist / 70.0) * (1.1 - 0.4 * agent.traits.boldness)
+            if evade > 0.0:
+                bias[4 if perc.local_hazard_dx > 0 else 3] += evade * abs(perc.local_hazard_dx)
+                bias[1 if perc.local_hazard_dy > 0 else 2] += evade * abs(perc.local_hazard_dy)
 
-        # Infants stay close to their mother and nurse/learn safely rather than wandering away alone
-        if agent.life_stage == "infant":
-            bias[0] += 1.4
+        # INFANT & CHILD CARE DRIVE: stay near parents for feeding & protection
+        if agent.life_stage in ("infant", "child"):
+            if agent.life_stage == "infant":
+                bias[0] += 1.4
             bias[14] -= 3.5
             bias[15] -= 4.0
-            if agent.parent_a_id is not None and agent.parent_a_id in perc.nearby_agent_ids:
-                mom = self.all_agents.get(agent.parent_a_id)
-                if mom is not None and mom.is_alive:
-                    mdx = mom.x - agent.x
-                    mdy = mom.y - agent.y
-                    mdist = math.hypot(mdx, mdy)
-                    if mdist > 20.0:
-                        bias[3 if mdx > 0 else 4] += 2.8 * (abs(mdx) / mdist)
-                        bias[2 if mdy > 0 else 1] += 2.8 * (abs(mdy) / mdist)
+            for pid in (agent.parent_a_id, agent.parent_b_id):
+                if pid is not None and pid in perc.nearby_agent_ids:
+                    par = self.all_agents.get(pid)
+                    if par is not None and par.is_alive:
+                        mdx = par.x - agent.x
+                        mdy = par.y - agent.y
+                        mdist = math.hypot(mdx, mdy)
+                        if mdist > (18.0 if agent.life_stage == "infant" else 34.0):
+                            pull = 2.8 if agent.life_stage == "infant" else 1.4
+                            bias[3 if mdx > 0 else 4] += pull * (abs(mdx) / mdist)
+                            bias[2 if mdy > 0 else 1] += pull * (abs(mdy) / mdist)
+                        break
 
-        # Natural social bonding / mating readiness when basic biological needs are satisfied
-        if agent.thirst < 0.45 and agent.hunger < 0.45 and agent.health > 0.70 and agent.life_stage != "infant":
-            if perc.nearest_agent_id is not None and perc.nearest_agent_dist <= 32.0:
-                bias[17] += 1.5 * agent.traits.cooperation + 0.55
-                bias[12] += 0.75 * agent.traits.cooperation
+        # PARENTAL PROVISIONING DRIVE: adults notice hungry child/kin nearby
+        if (
+            agent.life_stage in ("adult", "elder")
+            and perc.local_kin_need_id is not None
+            and agent.inventory.get("food", 0.0) >= 0.7
+            and agent.hunger < 0.65
+        ):
+            bias[13] += 2.1 * (0.5 + agent.traits.empathy)
+            if abs(perc.local_kin_need_dx) > 0.02 or abs(perc.local_kin_need_dy) > 0.02:
+                bias[3 if perc.local_kin_need_dx > 0 else 4] += 1.1 * abs(perc.local_kin_need_dx)
+                bias[2 if perc.local_kin_need_dy > 0 else 1] += 1.1 * abs(perc.local_kin_need_dy)
+
+        # REPRODUCTIVE DRIVE: healthy fed adults feel attraction toward nearby fertile opposite-sex peers
+        if agent.thirst < 0.48 and agent.hunger < 0.48 and agent.health > 0.68 and agent.life_stage != "infant":
+            if perc.local_mate_id is not None:
+                if perc.local_mate_dist <= 35.0:
+                    bias[17] += 2.2 * (0.5 + 0.7 * agent.traits.cooperation + 0.4 * agent.traits.empathy)
+                    bias[12] += 0.9 * agent.traits.cooperation
+                else:
+                    pull = 1.65 * (0.6 + 0.5 * agent.traits.cooperation)
+                    bias[3 if perc.local_mate_dx > 0 else 4] += pull * abs(perc.local_mate_dx)
+                    bias[2 if perc.local_mate_dy > 0 else 1] += pull * abs(perc.local_mate_dy)
+            elif perc.nearest_agent_id is not None and perc.nearest_agent_dist <= 32.0:
+                bias[17] += 1.25 * agent.traits.cooperation + 0.45
+                bias[12] += 0.7 * agent.traits.cooperation
             elif perc.nearest_agent_id is not None:
-                bias[3 if near_dx > 0 else 4] += 0.75 * abs(near_dx)
-                bias[2 if near_dy > 0 else 1] += 0.75 * abs(near_dy)
+                bias[3 if near_dx > 0 else 4] += 0.65 * abs(near_dx)
+                bias[2 if near_dy > 0 else 1] += 0.65 * abs(near_dy)
 
         # Personality & motive modulation (crimes remain 100% unblocked, driven by real aggression/desperation/grudge)
         bias[12] += 0.35 * agent.traits.cooperation
@@ -530,12 +647,24 @@ class AgentEngine:
             agent.thirst = max(0.0, agent.thirst - 0.08)
         agent.energy = max(0.0, agent.energy - 0.025)
 
-        # Infant nursing/care transfer from nearby mother if hungry
-        if agent.life_stage == "infant" and agent.parent_a_id in perc.nearby_agent_ids:
-            mom = self.all_agents.get(agent.parent_a_id)
-            if mom and mom.is_alive and mom.hunger < 0.75:
-                agent.hunger = max(0.0, agent.hunger - 0.09)
-                agent.thirst = max(0.0, agent.thirst - 0.09)
+        # Infant and dependent-child provisioning from nearby mother or father when parent is nourished
+        if agent.life_stage in ("infant", "child") and agent.hunger > 0.42:
+            for pid in (agent.parent_a_id, agent.parent_b_id):
+                if pid is not None and pid in perc.nearby_agent_ids:
+                    par = self.all_agents.get(pid)
+                    if par and par.is_alive and par.hunger < 0.72:
+                        if agent.life_stage == "infant":
+                            agent.hunger = max(0.0, agent.hunger - 0.11)
+                            agent.thirst = max(0.0, agent.thirst - 0.10)
+                            par.hunger = min(1.0, par.hunger + 0.01)
+                            break
+                        elif par.inventory.get("food", 0.0) >= 0.45:
+                            gift = 0.35
+                            par.inventory["food"] -= gift
+                            agent.hunger = max(0.0, agent.hunger - 0.25)
+                            agent.memory.update_social(pid, 0.04, 0.06)
+                            par.memory.update_social(agent.agent_id, 0.04, 0.06)
+                            break
 
         cidx = world.cell_index_at(agent.x, agent.y)
         carry_load = (
@@ -737,6 +866,19 @@ class AgentEngine:
                         f"Agent {agent.agent_id} constructed the first primitive wooden shelter.",
                     )
                 reward += 0.32
+            elif world.water[cidx] < 50.0 and world.fertility[cidx] >= 0.30 and world.moisture[cidx] >= 0.22:
+                grown = world.tend_cultivation(cidx, agent.memory.skills.get("cultivation", 0.0))
+                if grown > 0.01:
+                    agent.memory.practice_skill("cultivation", 0.08)
+                    if "early_cultivation" not in self.discovered_techs and agent.memory.skills.get("cultivation", 0.0) >= 0.35:
+                        self.discovered_techs["early_cultivation"] = tick
+                        history.record_truth(
+                            tick, sim_date, "tech_discovered", [agent.agent_id], agent.x, agent.y,
+                            f"Agent {agent.agent_id} began tending fertile soil and propagating local flora.",
+                        )
+                    reward += 0.20
+                else:
+                    reward -= 0.05
             else:
                 reward -= 0.08
 
@@ -813,8 +955,13 @@ class AgentEngine:
                 reward += 0.01
 
         elif act == "share_or_barter":
-            target_id = perc.nearest_agent_id
-            if target_id is not None and perc.nearest_agent_dist <= 38.0:
+            target_id = perc.local_kin_need_id or perc.nearest_agent_id
+            target_dist = (
+                math.hypot(self.all_agents[target_id].x - agent.x, self.all_agents[target_id].y - agent.y)
+                if (target_id is not None and target_id in self.all_agents and self.all_agents[target_id].is_alive)
+                else 999.0
+            )
+            if target_id is not None and target_dist <= 40.0:
                 other = self.all_agents.get(target_id)
                 if other and other.is_alive:
                     agent.last_partner_id = other.agent_id
@@ -824,13 +971,48 @@ class AgentEngine:
                             tick, sim_date, "first_interaction", [agent.agent_id, other.agent_id],
                             agent.x, agent.y, "First cooperative interaction via resource sharing.",
                         )
+                    # Opportunistic deception if low empathy & greedy when partner has food
+                    is_kin = (
+                        other.agent_id in agent.children_ids
+                        or other.agent_id == agent.parent_a_id
+                        or other.agent_id == agent.parent_b_id
+                    )
+                    deception_prob = (
+                        0.0
+                        if (is_kin or agent.traits.empathy > 0.45 or agent.traits.cooperation > 0.55)
+                        else max(0.0, (0.45 - agent.traits.empathy) * 0.42 + (0.25 if agent.hunger > 0.55 else 0.0))
+                    )
+                    if other.inventory.get("food", 0.0) >= 0.4 and rng.random() < deception_prob:
+                        swindled = min(0.55, other.inventory["food"])
+                        other.inventory["food"] -= swindled
+                        agent.inventory["food"] = min(10.0, agent.inventory.get("food", 0.0) + swindled)
+                        witnesses = [wid for wid in perc.nearby_agent_ids if wid != other.agent_id]
+                        witnesses.append(other.agent_id)
+                        other.memory.update_social(agent.agent_id, 0.12, -0.50)
+                        other.memory.record_episode(tick, "deception_suffered", agent.x, agent.y, agent.agent_id, -0.75, "trade_deception")
+                        for wid in witnesses:
+                            w_ag = self.all_agents.get(wid)
+                            if w_ag and w_ag.is_alive:
+                                w_ag.memory.update_social(agent.agent_id, 0.06, -0.28)
+                        _, crime_evs = society.record_crime(
+                            tick, sim_date, "deception", agent.agent_id, other.agent_id, agent.x, agent.y, witnesses
+                        )
+                        history.record_truth(
+                            tick, sim_date, "crime_deception", [agent.agent_id, other.agent_id], agent.x, agent.y,
+                            f"Agent {agent.agent_id} deceived agent {other.agent_id} during trade for {swindled:.2f} food.",
+                        )
+                        for ev in crime_evs:
+                            history.record_truth(
+                                tick, sim_date, ev["event_type"], ev["agent_ids"], ev["x"], ev["y"], ev["description"]
+                            )
+                        reward += 0.12
                     # Voluntary food gift or barter
-                    if agent.inventory.get("food", 0.0) >= 0.8 and other.hunger > 0.45:
-                        gift = 0.5
+                    elif agent.inventory.get("food", 0.0) >= 0.65 and (other.hunger > 0.42 or is_kin):
+                        gift = 0.5 if agent.inventory["food"] >= 0.9 else 0.35
                         agent.inventory["food"] -= gift
                         other.inventory["food"] = min(10.0, other.inventory.get("food", 0.0) + gift)
                         agent.memory.update_social(other.agent_id, 0.10, 0.14)
-                        other.memory.update_social(agent.agent_id, 0.12, 0.20)
+                        other.memory.update_social(agent.agent_id, 0.12, 0.22)
                         other.memory.record_episode(tick, "aid_received", agent.x, agent.y, agent.agent_id, 0.7, "food_gift")
                         used_token = False
                         if other.inventory.get("stone", 0.0) >= 0.4:
@@ -842,7 +1024,7 @@ class AgentEngine:
                             history.record_truth(
                                 tick, sim_date, ev["event_type"], ev["agent_ids"], ev["x"], ev["y"], ev["description"]
                             )
-                        reward += 0.30
+                        reward += 0.32 if is_kin else 0.28
                     else:
                         reward -= 0.04
             else:
@@ -987,7 +1169,9 @@ class AgentEngine:
                 history.record_truth(
                     tick, sim_date, ev["event_type"], ev["agent_ids"], ev["x"], ev["y"], ev["description"]
                 )
-            disp_ev = society.resolve_dispute_in_group(tick, agent.agent_id, agent.x, agent.y)
+            disp_ev = society.resolve_dispute_in_group(
+                tick, agent.agent_id, agent.x, agent.y, living_agents=self.all_agents
+            )
             if disp_ev is not None:
                 agent.memory.practice_skill("mediation", 0.12)
                 history.record_truth(
@@ -995,14 +1179,14 @@ class AgentEngine:
                 )
                 reward += 0.25
 
-            # 2) Biological & social reproduction check (never timer-based!)
+            # 2) Bidirectional biological & social reproduction check (never timer-based!)
             if (
                 agent.sex == "F"
                 and not agent.is_pregnant
                 and 16.0 <= agent.age_years <= 44.0
-                and agent.health >= 0.70
-                and agent.hunger < 0.50
-                and agent.thirst < 0.50
+                and agent.health >= 0.68
+                and agent.hunger < 0.52
+                and agent.thirst < 0.52
             ):
                 for oid in perc.nearby_agent_ids:
                     partner = self.all_agents.get(oid)
@@ -1011,15 +1195,48 @@ class AgentEngine:
                         and partner.is_alive
                         and partner.sex == "M"
                         and 16.0 <= partner.age_years <= 55.0
-                        and partner.health >= 0.65
+                        and partner.health >= 0.62
                         and math.hypot(partner.x - agent.x, partner.y - agent.y) <= 35.0
                         and agent.memory.trust.get(oid, 0.0) >= -0.05
                     ):
-                        p_conceive = 0.48 if agent.memory.trust.get(oid, 0.0) >= 0.08 else 0.32
+                        p_conceive = 0.50 if agent.memory.trust.get(oid, 0.0) >= 0.08 else 0.34
                         if rng.random() < p_conceive:
                             agent.is_pregnant = True
                             agent.gestation_ticks = 0
                             agent.mate_father_id = partner.agent_id
+                            agent.last_partner_id = partner.agent_id
+                            agent.memory.update_social(partner.agent_id, 0.25, 0.30)
+                            partner.memory.update_social(agent.agent_id, 0.25, 0.30)
+                            reward += 0.32
+                            break
+            elif (
+                agent.sex == "M"
+                and 16.0 <= agent.age_years <= 55.0
+                and agent.health >= 0.65
+                and agent.hunger < 0.52
+                and agent.thirst < 0.52
+            ):
+                for oid in perc.nearby_agent_ids:
+                    partner = self.all_agents.get(oid)
+                    if (
+                        partner is not None
+                        and partner.is_alive
+                        and partner.sex == "F"
+                        and not partner.is_pregnant
+                        and 16.0 <= partner.age_years <= 44.0
+                        and partner.health >= 0.68
+                        and partner.hunger < 0.52
+                        and partner.thirst < 0.52
+                        and math.hypot(partner.x - agent.x, partner.y - agent.y) <= 35.0
+                        and agent.memory.trust.get(oid, 0.0) >= -0.05
+                        and partner.memory.trust.get(agent.agent_id, 0.0) >= -0.05
+                    ):
+                        p_conceive = 0.46 if partner.memory.trust.get(agent.agent_id, 0.0) >= 0.08 else 0.30
+                        if rng.random() < p_conceive:
+                            partner.is_pregnant = True
+                            partner.gestation_ticks = 0
+                            partner.mate_father_id = agent.agent_id
+                            agent.last_partner_id = partner.agent_id
                             agent.memory.update_social(partner.agent_id, 0.25, 0.30)
                             partner.memory.update_social(agent.agent_id, 0.25, 0.30)
                             reward += 0.30
@@ -1046,17 +1263,21 @@ class AgentEngine:
             if agent.health > 0.6 and rng.random() < 0.08:
                 agent.disease_load = max(0.0, agent.disease_load - 0.1)
 
-        # Predator hazard in immediate vicinity
+        # Predator hazard in immediate vicinity + personal hazard spatial memory
         if perc.local_predator_dist < 28.0 and rng.random() < 0.08:
             tool_def = 0.45 if agent.inventory.get("tool", 0.0) >= 1.0 else 1.0
             agent.health -= 0.22 * tool_def
             agent.injury = min(1.0, agent.injury + 0.20 * tool_def)
             agent.memory.record_episode(tick, "danger_predator", agent.x, agent.y, None, -0.8, "predator_attack")
+            agent.memory.remember_hazard(tick, cidx, agent.x, agent.y, severity=1.5)
             reward -= 0.45
 
         # Natural recovery when well-fed and hydrated
         if agent.hunger < 0.45 and agent.thirst < 0.45 and agent.energy > 0.4 and agent.disease_load < 0.15:
             agent.health = min(1.0, agent.health + 0.02)
+
+        # Record private experiential outcome of this action
+        agent.memory.record_action_outcome(act, reward)
 
         # Check fatal biological failure or old age
         if agent.health <= 0.0:

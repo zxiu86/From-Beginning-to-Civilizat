@@ -8,9 +8,12 @@ import type {
   GenealogyNodeItem,
   GenerationalInterpretationItem,
   HeardEmissionItem,
+  LearningTelemetryData,
   LivingAgentFull,
   ObservatorySnapshot,
+  PopulationRecoveryCycleItem,
   RebirthRecordItem,
+  RecoveryStateData,
   SpatialMemoryItem,
   SurfaceArtifactItem,
   WitnessAccountItem,
@@ -351,6 +354,60 @@ function normalizeRebirthRecords(raw: unknown): RebirthRecordItem[] {
   }));
 }
 
+function normalizeRecoveryState(raw: unknown): RecoveryStateData {
+  const obj = isObject(raw) ? raw : {};
+  const histRaw = Array.isArray(obj.population_recovery_history)
+    ? obj.population_recovery_history.filter(isObject)
+    : [];
+  const history: PopulationRecoveryCycleItem[] = histRaw.map((h) => {
+    const causesRaw = isObject(h.death_causes) ? h.death_causes : {};
+    return {
+      cycle_number: asNumber(h.cycle_number, 1),
+      previous_cycle_number: asNumber(h.previous_cycle_number, 1),
+      extinction_tick: asNumber(h.extinction_tick, 0),
+      extinction_date: asString(h.extinction_date, 'Y0001-M01-D01'),
+      deaths_in_previous_cycle: asNumber(h.deaths_in_previous_cycle, 0),
+      death_causes: Object.fromEntries(
+        Object.entries(causesRaw).map(([k, v]) => [k, asNumber(v)]),
+      ),
+      pre_recovery_archive:
+        typeof h.pre_recovery_archive === 'string' ? h.pre_recovery_archive : null,
+      recovery_tick: asNumber(h.recovery_tick, 0),
+      recovery_date: asString(h.recovery_date, 'Y0001-M01-D01'),
+      new_agent_ids: asNumberArray(h.new_agent_ids),
+      post_recovery_population: asNumber(h.post_recovery_population, 0),
+      subsequent_births: asNumber(h.subsequent_births, 0),
+      survival_duration_ticks: asNumber(h.survival_duration_ticks, 0),
+      outcome: asString(h.outcome, 'active'),
+      final_extinction_tick: asNullableNumber(h.final_extinction_tick) ?? undefined,
+      final_extinction_date:
+        typeof h.final_extinction_date === 'string' ? h.final_extinction_date : undefined,
+    };
+  });
+  return {
+    auto_recover_on_extinction:
+      typeof obj.auto_recover_on_extinction === 'boolean' ? obj.auto_recover_on_extinction : true,
+    recovery_founder_count: asNumber(obj.recovery_founder_count, 4),
+    recovery_cycle_count: asNumber(obj.recovery_cycle_count, history.length),
+    current_cycle_number: asNumber(obj.current_cycle_number, 1),
+    current_cycle_start_tick: asNumber(obj.current_cycle_start_tick, 0),
+    population_recovery_history: history,
+  };
+}
+
+function normalizeLearningTelemetry(raw: unknown, livingCount: number): LearningTelemetryData {
+  const obj = isObject(raw) ? raw : {};
+  return {
+    living_brains_count: asNumber(obj.living_brains_count, livingCount),
+    agents_with_updates: asNumber(obj.agents_with_updates, 0),
+    avg_updates_per_agent: asNumber(obj.avg_updates_per_agent, 0),
+    mean_td_error: asNumber(obj.mean_td_error, 0),
+    mean_policy_entropy: asNumber(obj.mean_policy_entropy, 0),
+    mean_loss: asNumber(obj.mean_loss, 0),
+    mean_recent_reward: asNumber(obj.mean_recent_reward, 0),
+  };
+}
+
 export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapshot {
   if (!isObject(input)) {
     throw new SnapshotValidationError('Snapshot JSON must be an object.');
@@ -500,6 +557,8 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
     timeline_kind: asString(input.timeline_kind, 'original'),
     branch_point_tick: asNullableNumber(input.branch_point_tick),
     rebirth_records: normalizeRebirthRecords(input.rebirth_records),
+    recovery_state: normalizeRecoveryState(input.recovery_state),
+    learning_telemetry: normalizeLearningTelemetry(input.learning_telemetry, livingAgentsFull.length),
     backend: asString(input.backend, 'unknown'),
     clock: {
       tick: asNumber(clockObj.tick),

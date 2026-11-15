@@ -423,6 +423,44 @@ export interface DemographicsData {
   discovered_techs: Record<string, number>;
 }
 
+export interface PopulationRecoveryCycleItem {
+  cycle_number: number;
+  previous_cycle_number: number;
+  extinction_tick: number;
+  extinction_date: string;
+  deaths_in_previous_cycle: number;
+  death_causes: Record<string, number>;
+  pre_recovery_archive: string | null;
+  recovery_tick: number;
+  recovery_date: string;
+  new_agent_ids: number[];
+  post_recovery_population: number;
+  subsequent_births: number;
+  survival_duration_ticks: number;
+  outcome: 'active' | 'grew' | 're_extinct' | string;
+  final_extinction_tick?: number;
+  final_extinction_date?: string;
+}
+
+export interface RecoveryStateData {
+  auto_recover_on_extinction: boolean;
+  recovery_founder_count: number;
+  recovery_cycle_count: number;
+  current_cycle_number: number;
+  current_cycle_start_tick: number;
+  population_recovery_history: PopulationRecoveryCycleItem[];
+}
+
+export interface LearningTelemetryData {
+  living_brains_count: number;
+  agents_with_updates: number;
+  avg_updates_per_agent: number;
+  mean_td_error: number;
+  mean_policy_entropy: number;
+  mean_loss: number;
+  mean_recent_reward: number;
+}
+
 export interface ObservatorySnapshot {
   export_schema_version: string;
   exported_at_utc: string;
@@ -432,6 +470,8 @@ export interface ObservatorySnapshot {
   timeline_kind: 'original' | 'experimental_rebirth' | string;
   branch_point_tick: number | null;
   rebirth_records: RebirthRecordItem[];
+  recovery_state?: RecoveryStateData;
+  learning_telemetry?: LearningTelemetryData;
   backend: string;
   clock: SimClockData;
   engine_capabilities: EngineCapabilities;
@@ -470,6 +510,8 @@ export interface LiveTimelineSummary {
   sim_date: string;
   living_count: number;
   deceased_count: number;
+  recovery_cycle_count?: number;
+  current_cycle_number?: number;
   frame_ticks: number[];
 }
 

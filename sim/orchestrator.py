@@ -47,6 +47,7 @@ class SimulationEngine:
         timeline_kind: str = "original",
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
+        recovery_state: Optional[dict] = None,
     ) -> None:
         self.world_id = world_id
         self.timeline_id = timeline_id or str(uuid.uuid4())
@@ -65,6 +66,14 @@ class SimulationEngine:
         self.backend_name = backend_name
         self.evolution = EvolutionEngine()
         self.timeline_series: List[dict] = list(timeline_series or [])
+
+        rec = recovery_state or {}
+        self.recovery_cycle_count: int = int(rec.get("recovery_cycle_count", 0))
+        self.current_cycle_number: int = int(rec.get("current_cycle_number", 1))
+        self.current_cycle_start_tick: int = int(rec.get("current_cycle_start_tick", 0))
+        self.last_extinction_handled_tick: Optional[int] = rec.get("last_extinction_handled_tick")
+        self.population_recovery_history: List[dict] = list(rec.get("population_recovery_history", []))
+        self._active_checkpoint_dir: Optional[Path] = None
 
         self._stop_requested = False
         self._stop_reason: Optional[str] = None
@@ -184,6 +193,7 @@ class SimulationEngine:
             timeline_kind=manifest.get("timeline_kind", "original"),
             branch_point_tick=manifest.get("branch_point_tick"),
             rebirth_records=manifest.get("restored_rebirth_records", []),
+            recovery_state=manifest.get("restored_recovery_state", {}),
         )
 
     def install_signal_handlers(self) -> None:
@@ -206,6 +216,154 @@ class SimulationEngine:
             buckets.setdefault(key, []).append(aid)
         return buckets
 
+    def _recovery_state_dict(self) -> dict:
+        return {
+            "auto_recover_on_extinction": self.config.auto_recover_on_extinction,
+            "recovery_founder_count": self.config.recovery_founder_count,
+            "recovery_cycle_count": self.recovery_cycle_count,
+            "current_cycle_number": self.current_cycle_number,
+            "current_cycle_start_tick": self.current_cycle_start_tick,
+            "last_extinction_handled_tick": self.last_extinction_handled_tick,
+            "population_recovery_history": list(self.population_recovery_history),
+        }
+
+    def _tally_cycle_deaths(self, cycle_start_tick: int) -> Tuple[int, Dict[str, int]]:
+        causes: Dict[str, int] = {}
+        count = 0
+        for ag in self.agents.all_agents.values():
+            if not ag.is_alive and ag.death_tick is not None and ag.death_tick >= cycle_start_tick:
+                count += 1
+                c = ag.cause_of_death or "unknown"
+                causes[c] = causes.get(c, 0) + 1
+        return count, causes
+
+    def _handle_extinction_if_needed(self, tick: int, sim_date: str) -> bool:
+        """
+        Handle total extinction atomically & idempotently.
+        Never triggers when living population >= 1.
+        When living == 0 and auto_recover_on_extinction is True:
+          1) Records `population_extinct` truth event and closes ended cycle stats.
+          2) Saves an atomic pre-recovery extinction archive checkpoint BEFORE spawning founders.
+          3) Spawns 4 brand-new founders (2F, 2M) with fresh IDs, fresh brains, empty memories,
+             and zero world/resource/weather resets.
+        """
+        living = self.agents.living_agents()
+        if living:
+            # Update active recovery cycle metrics passively when a recovery cycle is ongoing
+            if self.population_recovery_history:
+                latest = self.population_recovery_history[-1]
+                if latest.get("cycle_number") == self.current_cycle_number and latest.get("outcome") in ("active", "grew"):
+                    subsequent_births = sum(
+                        1 for a in self.agents.all_agents.values() if a.birth_tick > self.current_cycle_start_tick
+                    )
+                    latest["post_recovery_population"] = len(living)
+                    latest["subsequent_births"] = subsequent_births
+                    latest["survival_duration_ticks"] = max(0, tick - int(latest.get("recovery_tick", tick)))
+                    if len(living) > self.config.recovery_founder_count or subsequent_births > 0:
+                        latest["outcome"] = "grew"
+            return False
+
+        # Confirmed living == 0: check strict per-tick idempotency
+        if self.last_extinction_handled_tick == tick:
+            return False
+        self.last_extinction_handled_tick = tick
+
+        cycle_deaths, cycle_causes = self._tally_cycle_deaths(self.current_cycle_start_tick)
+
+        if self.population_recovery_history:
+            latest = self.population_recovery_history[-1]
+            if latest.get("cycle_number") == self.current_cycle_number and latest.get("outcome") in ("active", "grew"):
+                latest["outcome"] = "re_extinct"
+                latest["final_extinction_tick"] = tick
+                latest["final_extinction_date"] = sim_date
+                latest["survival_duration_ticks"] = max(0, tick - int(latest.get("recovery_tick", tick)))
+                latest["deaths_in_cycle"] = cycle_deaths
+                latest["death_causes_end"] = cycle_causes
+
+        self.history.record_truth(
+            tick, sim_date, "population_extinct", [],
+            self.world.width_m * 0.5, self.world.height_m * 0.5,
+            (
+                f"Cycle #{self.current_cycle_number} reached total extinction at tick {tick} ({sim_date}); "
+                f"deaths_in_cycle={cycle_deaths}."
+            ),
+            metadata={
+                "cycle_number": self.current_cycle_number,
+                "deaths_in_cycle": cycle_deaths,
+                "death_causes": cycle_causes,
+            },
+        )
+
+        if not self.config.auto_recover_on_extinction:
+            self._stop_requested = True
+            self._stop_reason = "population_extinct"
+            return True
+
+        # 1) Save atomic pre-recovery extinction archive BEFORE creating new founders
+        archive_rel: Optional[str] = None
+        if self._active_checkpoint_dir is not None:
+            archive_rel = f"extinction_archives/cycle_{self.current_cycle_number:03d}_tick_{tick:06d}"
+            archive_path = self._active_checkpoint_dir / archive_rel
+            self.save_checkpoint(archive_path)
+
+        # 2) Inject 4 brand-new founders (2F, 2M) cleanly into untouched environment
+        founders = self.agents.spawn_recovery_founders(
+            tick=tick,
+            count=max(2, self.config.recovery_founder_count),
+            world=self.world,
+            rng=self.rng,
+            obs_dim=self.config.observation_dim,
+            hidden_dim=self.config.hidden_dim,
+            num_actions=self.config.num_actions,
+            num_signals=self.config.num_signal_tokens,
+            learning_rate=self.config.learning_rate,
+        )
+        founder_ids = [f.agent_id for f in founders]
+        ended_cycle = self.current_cycle_number
+        self.recovery_cycle_count += 1
+        self.current_cycle_number += 1
+        self.current_cycle_start_tick = tick
+
+        self.history.record_truth(
+            tick, sim_date, "population_recovery", founder_ids,
+            founders[0].x if founders else self.world.width_m * 0.5,
+            founders[0].y if founders else self.world.height_m * 0.5,
+            (
+                f"Automatic Population Recovery Cycle #{self.current_cycle_number}: injected {len(founders)} new founders "
+                f"(2F, 2M; ids={founder_ids}) after extinction of Cycle #{ended_cycle}."
+            ),
+            metadata={
+                "cycle_number": self.current_cycle_number,
+                "previous_cycle_number": ended_cycle,
+                "new_agent_ids": founder_ids,
+                "pre_recovery_archive": archive_rel,
+                "deaths_in_previous_cycle": cycle_deaths,
+                "death_causes": cycle_causes,
+            },
+        )
+
+        self.population_recovery_history.append({
+            "cycle_number": self.current_cycle_number,
+            "previous_cycle_number": ended_cycle,
+            "extinction_tick": tick,
+            "extinction_date": sim_date,
+            "deaths_in_previous_cycle": cycle_deaths,
+            "death_causes": cycle_causes,
+            "pre_recovery_archive": archive_rel,
+            "recovery_tick": tick,
+            "recovery_date": sim_date,
+            "new_agent_ids": founder_ids,
+            "post_recovery_population": len(founder_ids),
+            "subsequent_births": 0,
+            "survival_duration_ticks": 0,
+            "outcome": "active",
+        })
+
+        self._stop_requested = False
+        self._stop_reason = None
+        self._record_timeline_point()
+        return True
+
     def step_tick(self) -> None:
         """Advance the entire simulation by exactly one atomic tick."""
         self.clock.step(speed_mode=self.config.speed_mode)
@@ -222,18 +380,12 @@ class SimulationEngine:
                 metadata={"subtype": ev.get("subtype"), "severity": ev.get("severity")},
             )
 
-        # 2. Living agent perceptions, decisions, actions, and local learning
-        living = self.agents.living_agents()
-        if not living:
-            self._stop_requested = True
-            self._stop_reason = "population_extinct"
-            self.history.record_truth(
-                tick, sim_date, "population_extinct", [],
-                self.world.width_m * 0.5, self.world.height_m * 0.5,
-                "All individuals in the world have died; simulation halted naturally.",
-            )
+        # 2. Check pre-step extinction (e.g. if resumed dead)
+        if not self.agents.living_agents():
+            self._handle_extinction_if_needed(tick, sim_date)
             return
 
+        living = self.agents.living_agents()
         spatial_buckets = self._build_spatial_buckets(living)
         ordered_ids = list(living.keys())
         self.rng.shuffle(ordered_ids)
@@ -257,6 +409,7 @@ class SimulationEngine:
                     is_night=is_night,
                     base_vision=self.config.base_vision_radius_m,
                     base_hearing=self.config.base_hearing_radius_m,
+                    tick=tick,
                 )
                 bias = self.agents.compute_action_bias(ag, perc)
                 action_idx, signal_idx, log_prob, val_est, h_before = ag.brain.step_decision(
@@ -294,7 +447,11 @@ class SimulationEngine:
                     and (tick + aid) % self.config.learn_interval_ticks == 0
                     and len(ag.brain.experience) >= self.config.learn_batch_size
                 ):
-                    ag.brain.learn_from_experience(batch_size=self.config.learn_batch_size)
+                    ag.brain.learn_from_experience(
+                        batch_size=self.config.learn_batch_size,
+                        gae_lambda=self.config.gae_lambda,
+                        entropy_coef=self.config.entropy_coef,
+                    )
             except Exception as exc:
                 self.agent_step_errors += 1
                 logger.exception("Isolated error stepping agent %s at tick %s: %s", aid, tick, exc)
@@ -312,7 +469,16 @@ class SimulationEngine:
             rng=self.rng,
         )
 
-        # 4. Read-only macro telemetry point every 30 ticks (never touches RNG or simulation state)
+        # 4. Post-step extinction detection & atomic Automatic Population Recovery (if all died this tick)
+        if not self.agents.living_agents():
+            recovered = self._handle_extinction_if_needed(tick, sim_date)
+            if recovered:
+                return
+        else:
+            # Refresh live cycle survival counters cleanly
+            self._handle_extinction_if_needed(tick, sim_date)
+
+        # 5. Read-only macro telemetry point every 30 ticks (never touches RNG or simulation state)
         if tick % 30 == 0:
             self._record_timeline_point()
 
@@ -350,6 +516,7 @@ class SimulationEngine:
     def current_metrics(self) -> dict:
         living = self.agents.living_agents()
         crime_metrics = self.society.crime_and_stability_metrics(self.clock.tick, living)
+        brains_with_updates = [a.brain for a in living.values() if a.brain is not None and a.brain.total_updates > 0]
         return {
             **crime_metrics,
             "living_population": len(living),
@@ -357,6 +524,17 @@ class SimulationEngine:
             "total_agents_ever": len(self.agents.all_agents),
             "agent_step_errors": self.agent_step_errors,
             "discovered_techs": dict(self.agents.discovered_techs),
+            "recovery_cycle_count": self.recovery_cycle_count,
+            "current_cycle_number": self.current_cycle_number,
+            "mean_td_error": round(
+                sum(b.mean_td_error for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                4,
+            ) if brains_with_updates else 0.0,
+            "mean_policy_entropy": round(
+                sum(b.policy_entropy for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                4,
+            ) if brains_with_updates else 0.0,
+            "agents_with_updates": len(brains_with_updates),
         }
 
     def save_checkpoint(self, checkpoint_dir: Path, truth_archive_path: Optional[Path] = None) -> dict:
@@ -380,6 +558,7 @@ class SimulationEngine:
             timeline_kind=self.timeline_kind,
             branch_point_tick=self.branch_point_tick,
             rebirth_records=self.rebirth_records,
+            recovery_state=self._recovery_state_dict(),
         )
 
     def run(
@@ -392,6 +571,7 @@ class SimulationEngine:
         signals, and guaranteed final atomic checkpoint before exit.
         """
         self.install_signal_handlers()
+        self._active_checkpoint_dir = checkpoint_dir
         start_mono = time.monotonic()
         last_ckpt_mono = start_mono
         last_ckpt_tick = self.clock.tick

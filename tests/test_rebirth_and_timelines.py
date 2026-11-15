@@ -17,7 +17,7 @@ class TestRebirthAndExperimentalTimelines(unittest.TestCase):
     def _build_post_extinction_checkpoint(self, root: Path, pop: int = 24) -> tuple[Path, SimulationEngine, dict]:
         """Build a realistic evolved & depleted world with offspring, artifacts, and deaths ending in extinction."""
         orig_dir = root / "original_ckpt"
-        cfg = SimulationConfig(seed=31415, initial_population=pop)
+        cfg = SimulationConfig(seed=31415, initial_population=pop, auto_recover_on_extinction=False)
         engine = SimulationEngine.create_new(cfg)
 
         # Evolve naturally for 40 ticks

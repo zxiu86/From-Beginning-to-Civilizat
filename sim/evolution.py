@@ -40,8 +40,11 @@ class EvolutionEngine:
         for ag in list(living.values()):
             if ag.is_pregnant:
                 ag.gestation_ticks += 1
+                # Realistic mild maternal metabolic demand during pregnancy
+                ag.hunger = min(1.0, ag.hunger + 0.006)
+                ag.energy = max(0.0, ag.energy - 0.004)
                 # Severe starvation/dehydration can cause pregnancy loss
-                if ag.health < 0.25 or ag.hunger > 0.92:
+                if ag.health < 0.22 or ag.hunger > 0.94 or ag.thirst > 0.94:
                     ag.is_pregnant = False
                     ag.gestation_ticks = 0
                     ag.mate_father_id = None

@@ -219,6 +219,36 @@ export interface Translations {
   impCommitBtn: string;
   impRollbackBtn: string;
   impCloseBtn: string;
+  // Diagnostics, 2D Fallback, Recovery Cycles & Learning Telemetry
+  diagButton: string;
+  diagTitle: string;
+  diagRendererLabel: string;
+  diagCycleLabel: string;
+  diagSchemaLabel: string;
+  diagErrorLogLabel: string;
+  diagNoErrors: string;
+  diagClearBtn: string;
+  diagCopyBtn: string;
+  diagCopied: string;
+  diagDownloadBtn: string;
+  fallbackBannerTitle: string;
+  fallbackBannerDesc: string;
+  fallbackRetryWebgl: string;
+  recoverySectionTitle: string;
+  recoveryCurrentCycle: string;
+  recoveryCountLabel: string;
+  recoveryNoCycles: string;
+  recoveryFoundersLabel: string;
+  recoveryBirthsLabel: string;
+  recoveryDurationLabel: string;
+  recoveryArchiveLabel: string;
+  learningSectionTitle: string;
+  learningUpdates: string;
+  learningTdError: string;
+  learningEntropy: string;
+  learningLoss: string;
+  learningReward: string;
+  deceptionRate: string;
   actions: Record<string, string>;
   causes: Record<string, string>;
   seasons: Record<string, string>;
@@ -450,6 +480,35 @@ const AR: Translations = {
   impCommitBtn: 'تطبيق الخط الزمني المحدد ذرياً',
   impRollbackBtn: 'تراجع للحالة السابقة',
   impCloseBtn: 'إغلاق',
+  diagButton: 'التشخيص',
+  diagTitle: 'تشخيص النظام ومنع الأعطال',
+  diagRendererLabel: 'مُصيّر العرض',
+  diagCycleLabel: 'الدورة السكانية',
+  diagSchemaLabel: 'نسخة البيانات',
+  diagErrorLogLabel: 'سجل الأخطاء التقنية بالمتصفح',
+  diagNoErrors: 'لم تُسجّل أي أخطاء برمجية في الجلسة الحالية.',
+  diagClearBtn: 'مسح السجل',
+  diagCopyBtn: 'نسخ تقرير JSON',
+  diagCopied: 'تم النسخ',
+  diagDownloadBtn: 'تنزيل التقرير',
+  fallbackBannerTitle: 'وضع الخريطة التكتيكية ثنائية الأبعاد (WebGL غير متاح أو متوقف)',
+  fallbackBannerDesc: 'يعرض المرصد البيانات الحقيقية بأمان عبر رسم 2D دون تعطيل الصفحة. يمكنك النقر على الأفراد أو محاولة إعادة تشغيل 3D.',
+  fallbackRetryWebgl: 'إعادة محاولة 3D',
+  recoverySectionTitle: 'دورات الاستمرار التلقائي بعد الانقراض',
+  recoveryCurrentCycle: 'الدورة الحالية',
+  recoveryCountLabel: 'مرات التعافي',
+  recoveryNoCycles: 'لم يحدث انقراض شامل أو دورة تعافٍ بعد في هذه التجربة.',
+  recoveryFoundersLabel: 'المؤسسون الجدد',
+  recoveryBirthsLabel: 'مواليد لاحقة',
+  recoveryDurationLabel: 'مدة الصمود',
+  recoveryArchiveLabel: 'أرشيف ما قبل التعافي',
+  learningSectionTitle: 'مؤشرات التعلّم العصبي الفعلي',
+  learningUpdates: 'متوسط التحديثات/فرد',
+  learningTdError: 'متوسط خطأ TD',
+  learningEntropy: 'إنتروبيا السياسة',
+  learningLoss: 'متوسط الخسارة',
+  learningReward: 'المكافأة الأخيرة',
+  deceptionRate: 'الخداع والغش',
   actions: {
     idle: 'سكون / تأمل',
     rest: 'راحة واستشفاء',
@@ -580,6 +639,7 @@ const AR: Translations = {
     water_gourd: 'حفظ الماء',
     simple_shelter: 'مأوى بسيط',
     clay_tablet: 'لوح طيني للتدوين',
+    early_cultivation: 'رعاية النبات والزراعة الأولية',
   },
   governance: {
     informal: 'توافق عفوي غير رسمي',
@@ -810,6 +870,35 @@ const EN: Translations = {
   impCommitBtn: 'Atomically Load Selected Timeline',
   impRollbackBtn: 'Rollback Previous State',
   impCloseBtn: 'Close',
+  diagButton: 'Diagnostics',
+  diagTitle: 'System Diagnostics & Crash Guard',
+  diagRendererLabel: 'Viewport Renderer',
+  diagCycleLabel: 'Population Cycle',
+  diagSchemaLabel: 'Snapshot Schema',
+  diagErrorLogLabel: 'Captured Browser Errors',
+  diagNoErrors: 'No client runtime errors recorded in this session.',
+  diagClearBtn: 'Clear Log',
+  diagCopyBtn: 'Copy JSON Report',
+  diagCopied: 'Copied',
+  diagDownloadBtn: 'Download Report',
+  fallbackBannerTitle: '2D Tactical Map Fallback (WebGL Unavailable or Interrupted)',
+  fallbackBannerDesc: 'Rendering live world data safely via HTML5 2D Canvas without crashing. Click any agent or retry 3D.',
+  fallbackRetryWebgl: 'Retry 3D',
+  recoverySectionTitle: 'Automatic Post-Extinction Recovery Cycles',
+  recoveryCurrentCycle: 'Active Cycle',
+  recoveryCountLabel: 'Recovery Cycles',
+  recoveryNoCycles: 'No total extinction recovery cycles triggered yet.',
+  recoveryFoundersLabel: 'New Founders',
+  recoveryBirthsLabel: 'Subsequent Births',
+  recoveryDurationLabel: 'Survival Span',
+  recoveryArchiveLabel: 'Pre-Recovery Archive',
+  learningSectionTitle: 'Neural Learning Telemetry',
+  learningUpdates: 'Avg Updates/Agent',
+  learningTdError: 'Mean TD Error',
+  learningEntropy: 'Policy Entropy',
+  learningLoss: 'Mean Loss',
+  learningReward: 'Recent Reward',
+  deceptionRate: 'Deception',
   actions: {
     idle: 'Idle',
     rest: 'Rest / Recover',
@@ -940,6 +1029,7 @@ const EN: Translations = {
     water_gourd: 'Water Gourd',
     simple_shelter: 'Simple Shelter',
     clay_tablet: 'Clay Tablet',
+    early_cultivation: 'Early Plant Tending',
   },
   governance: {
     informal: 'Informal Association',

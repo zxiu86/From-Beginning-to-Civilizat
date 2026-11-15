@@ -83,14 +83,20 @@ class SimulationConfig:
     num_actions: int = 18
     num_signal_tokens: int = 24
     learning_rate: float = 0.005
-    max_experience_buffer: int = 48
+    max_experience_buffer: int = 64
     learn_batch_size: int = 12
     learn_interval_ticks: int = 6
+    entropy_coef: float = 0.018
+    gae_lambda: float = 0.90
 
     # Sensory limits (strict locality)
     base_vision_radius_m: float = 120.0
     base_hearing_radius_m: float = 180.0
     interaction_radius_m: float = 35.0
+
+    # Automatic Population Recovery System (post-total-extinction only)
+    auto_recover_on_extinction: bool = True
+    recovery_founder_count: int = 4
 
     # Runtime & Persistence
     seed: int = 42

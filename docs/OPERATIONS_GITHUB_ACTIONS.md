@@ -48,6 +48,7 @@
 
 ## 5. موقع المراقبة (Civilization Observatory) والنشر عبر GitHub Pages
 
-- **تصفح اللقطات محلياً**: بعد تنزيل Artifact `sim-logs-<RUN_ID>` من GitHub Actions، افتح موقع Civilization Observatory واضغط **رفع `observatory_export.json`** لعرض العالم ثلاثي الأبعاد والذاكرة والأنساب والتاريخ ثلاثي الطبقات والمنظور الشخصي (FPV).
-- **النشر اليدوي على GitHub Pages**: يتضمن المستودع `.github/workflows/pages.yml` الذي يعمل **يدوياً فقط (`workflow_dispatch`)**. يمكنك إدخال `sim_run_id` اختيارياً أثناء النشر لجلب أحدث `observatory_export.json` إلى `public/data/latest_snapshot.json` وتضمينه كـ Snapshot منشور في الموقع الساكن.
+- **تصفح اللقطات محلياً**: بعد تنزيل Artifact `sim-logs-<RUN_ID>` من GitHub Actions، افتح موقع Civilization Observatory واضغط **رفع `observatory_export.json`** لعرض العالم ثلاثي الأبعاد (أو العرض التكتيكي 2D عند غياب WebGL)، والذاكرة والأنساب ودورات الاستعادة التلقائية وقياسات التعلم العصبي.
+- **النشر اليدوي على GitHub Pages**: يتضمن المستودع `.github/workflows/pages.yml` الذي يعمل **يدوياً فقط (`workflow_dispatch`)**. يضبط الـ Workflow تلقائياً قيمة `NEXT_PUBLIC_BASE_PATH` لتكون فارغة (`""`) عند النشر على مستودع نطاق الجذر (`*.github.io` مثل `zxiu86.github.io`) أو وجود `CNAME`، و`"/${REPO_NAME}"` للمسارات الفرعية للمشاريع، مما يمنع خطأ `404` على ملفات `/_next/static/*` وخطأ `Application error`. كما يمكنك إدخال `sim_run_id` اختيارياً أثناء النشر لتضمين أحدث `observatory_export.json` في `public/data/latest_snapshot.json`.
+
 

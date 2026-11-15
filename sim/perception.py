@@ -34,6 +34,18 @@ class LocalPerception:
     local_predator_dist: float
     local_herbivore_dist: float
     obs_vector: List[float]
+    local_mate_id: Optional[int] = None
+    local_mate_dx: float = 0.0
+    local_mate_dy: float = 0.0
+    local_mate_dist: float = 999.0
+    local_kin_need_id: Optional[int] = None
+    local_kin_need_dx: float = 0.0
+    local_kin_need_dy: float = 0.0
+    local_hazard_dx: float = 0.0
+    local_hazard_dy: float = 0.0
+    local_hazard_dist: float = 999.0
+    local_soil_fertility: float = 0.0
+    local_soil_moisture: float = 0.0
 
 
 class PerceptionEngine:
@@ -75,6 +87,7 @@ class PerceptionEngine:
         base_vision: float,
         base_hearing: float,
         bucket_size: float = 150.0,
+        tick: Optional[int] = None,
     ) -> LocalPerception:
         vision_r, hearing_r = PerceptionEngine.compute_sensory_radii(
             world, is_night, base_vision, base_hearing
@@ -88,6 +101,16 @@ class PerceptionEngine:
         nearby_ids: List[int] = []
         nearest_id: Optional[int] = None
         nearest_dist = vision_r + 1.0
+        local_mate_id: Optional[int] = None
+        local_mate_dist = vision_r + 1.0
+        local_kin_need_id: Optional[int] = None
+        local_kin_need_score = -1.0
+
+        can_seek_mate = (
+            (agent.sex == "F" and not agent.is_pregnant and 16.0 <= agent.age_years <= 44.0)
+            or (agent.sex == "M" and 16.0 <= agent.age_years <= 55.0)
+        )
+        child_set = set(agent.children_ids)
 
         for dx_b in range(-cell_span, cell_span + 1):
             for dy_b in range(-cell_span, cell_span + 1):
@@ -103,6 +126,31 @@ class PerceptionEngine:
                         if dist < nearest_dist:
                             nearest_dist = dist
                             nearest_id = other_id
+
+                        # Local mate readiness within visual range
+                        if can_seek_mate and other.sex != agent.sex:
+                            other_ready = (
+                                (other.sex == "F" and not other.is_pregnant and 16.0 <= other.age_years <= 44.0 and other.health >= 0.65)
+                                or (other.sex == "M" and 16.0 <= other.age_years <= 55.0 and other.health >= 0.60)
+                            )
+                            if other_ready and agent.memory.trust.get(other_id, 0.0) >= -0.05:
+                                if dist < local_mate_dist:
+                                    local_mate_dist = dist
+                                    local_mate_id = other_id
+
+                        # Local dependent child / kin need within visual range
+                        is_child_or_parent = (
+                            other_id in child_set
+                            or other_id == agent.parent_a_id
+                            or other_id == agent.parent_b_id
+                        )
+                        if is_child_or_parent and (other.hunger > 0.45 or other.health < 0.65):
+                            need_score = other.hunger * 1.4 + (1.0 - other.health)
+                            if other.age_years < 14.0:
+                                need_score += 0.6
+                            if need_score > local_kin_need_score:
+                                local_kin_need_score = need_score
+                                local_kin_need_id = other_id
 
         # Progressive recognition: unfamiliar individuals have blurred identity signals until repeated contact
         nearest_fam = 0.0
@@ -174,6 +222,7 @@ class PerceptionEngine:
         # Local fauna within vision radius
         pred_dist = vision_r + 1.0
         herb_dist = vision_r + 1.0
+        nearest_pred_xy: Optional[Tuple[float, float]] = None
         for f in world.fauna.values():
             if not f.alive:
                 continue
@@ -181,6 +230,7 @@ class PerceptionEngine:
             if d <= vision_r:
                 if f.species == "predator" and d < pred_dist:
                     pred_dist = d
+                    nearest_pred_xy = (f.x, f.y)
                 elif f.species == "herbivore" and d < herb_dist:
                     herb_dist = d
 
@@ -214,6 +264,33 @@ class PerceptionEngine:
             other = living_agents[nearest_id]
             near_dx = max(-1.0, min(1.0, (other.x - agent.x) / max(1.0, vision_r)))
             near_dy = max(-1.0, min(1.0, (other.y - agent.y) / max(1.0, vision_r)))
+
+        mate_dx, mate_dy = 0.0, 0.0
+        if local_mate_id is not None and local_mate_id in living_agents:
+            mate = living_agents[local_mate_id]
+            mate_dx, mate_dy = _dir_unit(mate.x, mate.y)
+
+        kin_need_dx, kin_need_dy = 0.0, 0.0
+        if local_kin_need_id is not None and local_kin_need_id in living_agents:
+            kin = living_agents[local_kin_need_id]
+            kin_need_dx, kin_need_dy = _dir_unit(kin.x, kin.y)
+
+        hazard_dx, hazard_dy = 0.0, 0.0
+        hazard_dist = vision_r + 1.0
+        if nearest_pred_xy is not None:
+            hazard_dx, hazard_dy = _dir_unit(nearest_pred_xy[0], nearest_pred_xy[1])
+            hazard_dist = pred_dist
+        else:
+            mem_haz = (
+                agent.memory.recall_nearest_hazard(tick, agent.x, agent.y)
+                if tick is not None
+                else agent.memory.recall_nearest(agent.x, agent.y, "hazard")
+            )
+            if mem_haz is not None:
+                hd = math.hypot(mem_haz.x - agent.x, mem_haz.y - agent.y)
+                if hd <= vision_r:
+                    hazard_dx, hazard_dy = _dir_unit(mem_haz.x, mem_haz.y)
+                    hazard_dist = hd
 
         cidx = r0 * world.cols + c0
         last_heard_token_norm = (heard[-1].token / 23.0) if heard else 0.0
@@ -282,4 +359,16 @@ class PerceptionEngine:
             local_predator_dist=pred_dist,
             local_herbivore_dist=herb_dist,
             obs_vector=obs,
+            local_mate_id=local_mate_id,
+            local_mate_dx=mate_dx,
+            local_mate_dy=mate_dy,
+            local_mate_dist=local_mate_dist,
+            local_kin_need_id=local_kin_need_id,
+            local_kin_need_dx=kin_need_dx,
+            local_kin_need_dy=kin_need_dy,
+            local_hazard_dx=hazard_dx,
+            local_hazard_dy=hazard_dy,
+            local_hazard_dist=hazard_dist,
+            local_soil_fertility=world.fertility[cidx],
+            local_soil_moisture=world.moisture[cidx],
         )

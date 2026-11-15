@@ -9,6 +9,7 @@ import {
   Scale,
   ShieldAlert,
 } from 'lucide-react';
+import {safeFixed} from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {ObservatorySnapshot} from '@/lib/observatory/types';
 
@@ -258,35 +259,39 @@ export default function CivilizationDrawer({t, snapshot}: CivilizationDrawerProp
           <div className="rounded bg-[#121821] p-2">
             <div className="text-[#9FB0C3]">{t.recentCrimeRate1k}</div>
             <div className="font-mono text-sm font-bold tabular-nums">
-              {crime.recent_180d_crimes_per_1000.toFixed(1)}
+              {safeFixed(crime.recent_180d_crimes_per_1000, 1)}
             </div>
           </div>
           <div className="rounded bg-[#121821] p-2">
             <div className="text-[#9FB0C3]">{t.disputeResolution}</div>
             <div className="font-mono text-sm font-bold tabular-nums">
-              {(crime.dispute_resolution_rate * 100).toFixed(0)}%
+              {safeFixed(crime.dispute_resolution_rate * 100, 0)}%
             </div>
           </div>
           <div className="rounded bg-[#121821] p-2">
             <div className="text-[#9FB0C3]">{t.socialTrust}</div>
             <div className="font-mono text-sm font-bold tabular-nums">
-              {crime.social_trust_index.toFixed(3)}
+              {safeFixed(crime.social_trust_index, 3)}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[10px] tabular-nums">
+        <div className="grid grid-cols-4 gap-1.5 text-center font-mono text-[10px] tabular-nums">
           <div className="rounded bg-[#121821] p-1.5">
             <div className="text-[#9FB0C3]">{t.murderRate}</div>
-            <div>{crime.murder_rate_per_1000.toFixed(1)}</div>
+            <div>{safeFixed(crime.murder_rate_per_1000, 1)}</div>
           </div>
           <div className="rounded bg-[#121821] p-1.5">
             <div className="text-[#9FB0C3]">{t.assaultRate}</div>
-            <div>{crime.assault_rate_per_1000.toFixed(1)}</div>
+            <div>{safeFixed(crime.assault_rate_per_1000, 1)}</div>
           </div>
           <div className="rounded bg-[#121821] p-1.5">
             <div className="text-[#9FB0C3]">{t.theftRate}</div>
-            <div>{crime.theft_rate_per_1000.toFixed(1)}</div>
+            <div>{safeFixed(crime.theft_rate_per_1000, 1)}</div>
+          </div>
+          <div className="rounded bg-[#121821] p-1.5">
+            <div className="text-[#9FB0C3]">{t.deceptionRate}</div>
+            <div>{crime.crimes_by_type.deception ?? 0}</div>
           </div>
         </div>
 
@@ -294,7 +299,7 @@ export default function CivilizationDrawer({t, snapshot}: CivilizationDrawerProp
           <span className="text-[#9FB0C3]">{t.stabilityIndex}: </span>
           {crime.stability_index !== null ? (
             <span className="font-mono font-bold tabular-nums text-emerald-400">
-              {crime.stability_index.toFixed(3)}
+              {safeFixed(crime.stability_index, 3)}
             </span>
           ) : (
             <span className="text-[#9FB0C3]">{t.insufficientWindow}</span>

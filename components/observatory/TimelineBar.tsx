@@ -62,6 +62,7 @@ export default function TimelineBar({
   const canBranchRebirth =
     liveApiAvailable &&
     activeRunId !== null &&
+    snapshot.demographics.living_count > 0 &&
     snapshot.demographics.deceased_count > 0 &&
     !isHistoricalMode;
 

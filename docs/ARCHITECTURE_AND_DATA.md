@@ -4,55 +4,56 @@
 
 | # | المحرك / Engine | الوحدة / Module | المسؤولية الأساسية / Core Responsibility |
 |---|---|---|---|
-| 1 | Agent Engine | `sim/agent.py` | دورة حياة السكان، الأيض، التكاثر، الموت النهائي، تنفيذ الأفعال، نقل المهارات اجتماعياً |
-| 2 | Neural Brain | `sim/brain.py` | شبكة عصبية مستقلة لكل فرد (`GRUCell` + Policy/Signal/Value Heads + Adam) على PyTorch CPU |
-| 3 | World & Environment | `sim/world.py` | مساحة 5 كم² (`2500m×2000m`)، تضاريس، تربة، مياه، موارد محدودة متجددة، طقس، كوارث، حيوانات |
-| 4 | Perception Engine | `sim/perception.py` | إدراك حسي محلي مقيد بمدى الرؤية والسمع والليل والطقس (دون أي تسرب معرفي عالمي) |
-| 5 | Memory Engine | `sim/memory.py` | ذاكرة فردية خاصة (حوادث، خريطة مكانية، ألفة وثقة اجتماعية، مهارات) لا تُورّث عند الموت |
+| 1 | Agent Engine | `sim/agent.py` | دورة حياة السكان، دوافع البقاء والتكاثر، رعاية الأبوين، الموت النهائي، الأفعال بما فيها `cultivation` و`deception` |
+| 2 | Neural Brain | `sim/brain.py` | شبكة مستقلة (`GRUCell` + Actor/Signal/Value + Adam) مع GAE(λ) والإنتروبيا وBPTT لبوابات GRU و`learning_telemetry` |
+| 3 | World & Environment | `sim/world.py` | مساحة 5 كم² (`2500m×2000m`)، تضاريس، خصوبة ورطوبة وزراعة تدريجية (`tend_cultivation`)، مياه، موارد محدودة، طقس، حيوانات |
+| 4 | Perception Engine | `sim/perception.py` | إدراك حسي محلي مقيد بالرؤية والسمع والليل والطقس مع مؤشرات الشركاء والأبناء والخطر والتربة (دون تسرب عالمي) |
+| 5 | Memory Engine | `sim/memory.py` | ذاكرة فردية خاصة (حوادث، مكانية، عواقب الأفعال، ثقة، مهارات) معزولة ولا تُنسخ عند الولادة أو الاستعادة |
 | 6 | Communication Engine | `sim/communication.py` | رموز صوتية وإيماءات مجردة، نشوء الإشارات المشتركة، الكلمات المستقرة، اللهجات، الانزياح الدلالي |
-| 7 | Evolution Engine | `sim/evolution.py` | الحمل والولادة، فناء الكلمات واللغات بموت حامليها، تآكل الآثار، تطور المؤسسات |
-| 8 | Society, Economy, Governance & Crime | `sim/society.py` | تحالفات، مقايضة وأسواق ناشئة، قواعد وعقوبات، قيادة وانتخابات اختيارية كل 10 سنوات، جرائم ومقاييس استقرار |
+| 7 | Evolution Engine | `sim/evolution.py` | كلفة الحمل الأيضية والولادة، فناء الكلمات واللغات بموت حامليها، تآكل الآثار، تطور المؤسسات |
+| 8 | Society, Economy, Governance & Crime | `sim/society.py` | تحالفات، مقايضة وأسواق، معايير مبنية على الخبرة الحقيقية، وساطة حقيقية (استرداد/طرد)، جرائم (`theft`/`deception`/`assault`/`murder`) |
 | 9 | History & Knowledge Engine | `sim/history.py` | فصل صارم بين الطبقة 1 (الحقيقة)، الطبقة 2 (روايات الشهود والآثار)، الطبقة 3 (تفسيرات الأجيال) |
 | 10 | Simulation Clock | `sim/clock.py` | مقياس `1 دقيقة حقيقية = 1 شهر محاكى` (`30 tick/month`) مستقل عن أي واجهة عرض |
-| 11 | Persistence & Checkpoint | `sim/persistence.py` | حفظ ذري (Staging + SHA-256 + Swap)، SQLite، أوزان الشبكات، حالة RNG، تصدير JSON للمراقبة |
-| 12 | Orchestrator & CLI | `sim/orchestrator.py`, `sim/cli.py` | ربط الأنظمة، إدارة الميزانية الزمنية، تفريع الإحياء والمقارنة، معالجة الإشارات `SIGTERM/SIGINT` |
+| 11 | Persistence & Checkpoint | `sim/persistence.py` | حفظ ذري (Staging + SHA-256 + Swap)، SQLite، أوزان الشبكات، حالة RNG، تصدير JSON وأرشيفات ما قبل الاستعادة |
+| 12 | Orchestrator & CLI | `sim/orchestrator.py`, `sim/cli.py` | إدارة الحلقة، استعادة السكان التلقائية بعد الانقراض الكلي فقط (`4` مؤسسين)، تفريع مقارنة اختياري للنشط فقط، `SIGTERM/SIGINT` |
 | 13 | Physics & Navigation | `sim/physics.py` | مسارات `A*` محدودة فوق التضاريس، تجنب المياه العميقة والانحدارات، التصادم والتباعد والالتفاف |
-| 14 | Rebirth & Timelines | `sim/rebirth.py` | إنشاء خط زمني تجريبي بـ `UUID` مع عزل الذاكرة والأحداث وإحياء الأفراد بتجربة `Death Penalty Learning` |
-| 15 | Live Runner & Observatory | `server.mjs`, `lib/observatory/`, `components/observatory/` | تشغيل حي (`/api/sim/*`)، مستورد JSON غير محدود، محرك Three.js بـ 4 مستويات جودة و3 مستويات LOD، لوحة مقارنة الخطوط |
+| 14 | Rebirth & Timelines | `sim/rebirth.py` | تفريع تجريبي معزول للنشط فقط (`experimental_rebirth`)، محظور على أرشيف التجربة الأولى المنقرضة |
+| 15 | Live Runner & Observatory | `server.mjs`, `lib/observatory/`, `components/observatory/` | تشغيل حي (`/api/sim/*` بـ `100` فرد افتراضياً)، مستورد JSON غير محدود، محرك Three.js مع بديل `FallbackCanvas2D`، ونافذة تشخيص |
 
 ---
 
 ## 2. صيغة ملفات نقطة الحفظ وعزل الخطوط الزمنية / Checkpoint & Timeline Isolation Format
 
-يحتوي كل مجلد Checkpoint على 6 ملفات مترابطة ومحمية بالبصمة التشفيرية `SHA-256`، كما تُخزّن الأفرع المستقلة تحت `timelines/<timeline_uuid>/` مع لقطات تاريخية منفصلة تحت `history_frames/tick_*.json`:
+يحتوي كل مجلد Checkpoint على 6 ملفات مترابطة ومحمية بالبصمة التشفيرية `SHA-256`، وتُحفظ أرشيفات الانقراض الكلي تحت `extinction_archives/cycle_NNN_tick_TTTTTT/` قبل إدخال المؤسسين الجدد مباشرة:
 
 1. **`world_state.db` (SQLite)**:
-   - جدول `meta`: رقم العالم `world_id`، معرف الخط الزمني `timeline_id` و`timeline_kind` و`parent_timeline_id`، نسخة المخطط، `tick` الحالي، المعرّف القادم `next_agent_id`، معالم الاكتشافات.
-   - جدول `agents`: سجل جميع الأفراد الأحياء والمتوفين (`is_alive`, `birth_tick`, `death_tick`, `rebirth_count`, `original_death_tick`, `death_penalty_record`، السجل الكامل JSON بما في ذلك شجرة النسب والذاكرة).
-   - جدول `subsystems`: حالة الإعدادات، الساعة، خريطة العالم والحيوانات، اللغة، المجتمع، وسجلات الإحياء، والطبقات التاريخية 2 و3.
+   - جدول `meta`: رقم العالم `world_id`، معرف الخط الزمني، نسخة المخطط، `tick` الحالي، المعرّف القادم `next_agent_id`، معالم الاكتشافات.
+   - جدول `agents`: سجل جميع الأفراد الأحياء والمتوفين عبر كافة الدورات دون إعادة تدوير `agent_id`.
+   - جدول `subsystems`: حالة الإعدادات، الساعة، خريطة العالم والحيوانات، اللغة، المجتمع، حالة `recovery_state` (`population_recovery_history`, `current_cycle_number`, `recovery_cycle_count`)، والطبقات التاريخية 2 و3.
 2. **`brains_state.bin.gz`**:
-   - حزمة مضغوطة تحتوي على أوزان الشبكة العصبية (`state_dict`) وحالة المُحسّن (`optimizer.state_dict`) والحالة المخفية `hidden_state` ومخزن التجارب لكل فرد (تُحفظ أيضاً للمتوفين ليظل الإحياء بهويتهم وأوزانهم ممكناً بدقة).
+   - أوزان الشبكة العصبية (`state_dict`) وحالة المُحسّن (`optimizer.state_dict`) والحالة المخفية ومخزن التجارب الانزلاقي وقياسات التعلم لكل فرد.
 3. **`events_truth.jsonl.gz`**:
-   - سجل مضغوط بصيغة JSON Lines للطبقة الأولى (الحقيقة الفعلية) لتتبع كل حدث تاريخي بدقة للمراقب الخارجي.
+   - سجل الطبقة الأولى متضمناً أحداث `population_extinct` و`population_recovery` و`crime_deception`.
 4. **`rng_state.json.gz`**:
-   - الحالة الدقيقة لمولدات الأرقام العشوائية (`random.Random` و`torch` CPU RNG) لضمان استمرارية متطابقة عند الاستئناف.
+   - الحالة الدقيقة لمولدات الأرقام العشوائية (`random.Random` و`torch` CPU RNG).
 5. **`observatory_export.json`**:
-   - عقد بيانات JSON لمرصد الحضارة متضمناً حالة التضاريس والمباني وسلاسل التاريخ وسجلات الإحياء وعقوبة الموت والخطوط الزمنية.
+   - عقد بيانات JSON للمرصد متضمناً التضاريس، المباني، التاريخ، `recovery_state`، و`learning_telemetry`.
 6. **`manifest.json`**:
-   - يحتوي على `world_id`, `timeline_id`, `timeline_kind`, `parent_timeline_id`, `schema_version`, `sim_tick`, `sim_date`, `saved_at_utc`, `backend`, `living_population`, `total_agents_ever`, و`checksums` (SHA-256 لكل ملف).
+   - البيانات الوصفية وبصمات `SHA-256` لكل ملف مع حالة دورات الاستعادة.
 
 ---
 
 ## 3. الخادم التفاعلي ومستورد البيانات متعدد الملفات / Live Runner API & Multi-File Importer
 
 - **`server.mjs`**: يخدم واجهة Next.js ويستدعي `python3 -m sim.cli` داخل `.sim_runs/` عبر نقاط النهاية:
-  - `GET /api/sim/status` — حالة العوالم والخطوط الزمنية المتاحة.
-  - `POST /api/sim/new` — إنشاء عالم جديد ببذرة وعدد سكان أولي محددين.
+  - `GET /api/sim/status` — حالة العوالم، الخطوط الزمنية، وعدد دورات الاستعادة التلقائية.
+  - `POST /api/sim/new` — إنشاء عالم جديد ببذرة وعدد سكان أولي افتراضي `100` فرد.
   - `POST /api/sim/step` — تنفيذ عدد محدد من الخطوات (`ticks`) وتصدير لقطة وملف تاريخي.
-  - `POST /api/sim/branch-rebirth` — إنشاء فرع `experimental_rebirth` من Checkpoint الخط الأصلي.
+  - `POST /api/sim/branch-rebirth` — إنشاء فرع `experimental_rebirth` من عالم نشط.
   - `GET /api/sim/snapshot?id=<run>&timeline=<tl>&tick=<n>` — قراءة الحالة الحالية أو لقطة تاريخية مسجلة للقراءة فقط.
-  - `GET /api/sim/compare?id=<run>&original=<t1>&experimental=<t2>` — مقارنة إحصائية وسكانية وعصبية بين الخط الأصلي والخط التجريبي.
-- **`lib/observatory/importer.ts`**: مستورد دفعات ضخمة غير محدود (`processJsonImportBatch`) يعالج الملفات على دفعات غير متزامنة، يرتّبها رقمياً وطوبولوجياً عبر بيانات `step_id`/`step_number`/`tick`/`dependencies`/`parent_step`، يكشف الدورات (`cycles`)، يعالج التكرارات والفجوات، يعزل الملفات المعطوبة في الحجر الصحي، ويفصل الخطوط الزمنية (`timeline_id`) مع دعم التراجع الكامل (`Rollback`).
+  - `GET /api/sim/compare?id=<run>&original=<t1>&experimental=<t2>` — مقارنة إحصائية وسكانية وعصبية.
+- **`lib/observatory/importer.ts`**: مستورد دفعات غير محدود (`processJsonImportBatch`) يعالج الملفات بترتيب رقمي وطوبولوجي مع عزل الملفات المعطوبة والتراجع الكامل (`Rollback`).
+- **`lib/observatory/diagnostics.ts` و`FallbackCanvas2D.tsx`**: مخزن تشخيص خالٍ من الأسرار يلتقط أخطاء WebGL والعميل مبكراً، مع بديل عرض تفاعلي ثنائي الأبعاد عند تعذر WebGL.
 
 ---
 

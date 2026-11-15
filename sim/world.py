@@ -295,6 +295,22 @@ class WorldEngine:
         self.stone_mineral[idx] = round(self.stone_mineral[idx] - taken, 4)
         return taken
 
+    def tend_cultivation(self, idx: int, skill_level: float) -> float:
+        """
+        Modest soil tending/seeding on fertile, moist, passable dry land.
+        Improves fertility slightly and nurtures local food flora growth within biological capacity.
+        """
+        if self.water[idx] >= 50.0 or self.slope[idx] > 0.9 or self.fertility[idx] < 0.25 or self.moisture[idx] < 0.20:
+            return 0.0
+        fert_gain = 0.008 * (0.5 + 0.5 * skill_level)
+        self.fertility[idx] = round(min(0.95, self.fertility[idx] + fert_gain), 4)
+        cap_room = max(0.0, self.food_max[idx] * 1.15 - self.food_flora[idx])
+        if self.food_max[idx] < 24.0:
+            self.food_max[idx] = round(min(24.0, self.food_max[idx] + 0.08 * (0.5 + skill_level)), 3)
+        growth = min(cap_room, 0.35 + 0.45 * skill_level)
+        self.food_flora[idx] = round(min(self.food_max[idx], self.food_flora[idx] + growth), 4)
+        return growth
+
     def step_environment(self, tick: int, season: str, month: int, rng: random.Random) -> List[dict]:
         """Advance weather, climate disasters, resource regeneration, and fauna ecology."""
         events: List[dict] = []

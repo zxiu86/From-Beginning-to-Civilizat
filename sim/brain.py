@@ -117,6 +117,10 @@ class AgentBrain:
         self.experience: List[ExperienceItem] = []
         self.total_updates: int = 0
         self.last_loss: float = 0.0
+        self.mean_td_error: float = 0.0
+        self.policy_entropy: float = 0.0
+        self.mean_recent_reward: float = 0.0
+        self.value_loss: float = 0.0
         self.death_penalty_history: List[dict] = []
 
         init_seed = seed if seed is not None else (agent_id * 7919 + 104729)
@@ -164,9 +168,9 @@ class AgentBrain:
             "b_val": [0.0],
         }
 
-    def _pure_python_forward(
+    def _pure_python_forward_cache(
         self, obs: List[float], h_prev: List[float]
-    ) -> Tuple[List[float], List[float], float, List[float]]:
+    ) -> Tuple[List[float], List[float], float, List[float], List[float], List[float], List[float]]:
         w = self._w
         H = self.hidden_dim
         O = self.obs_dim
@@ -227,6 +231,12 @@ class AgentBrain:
         for j in range(H):
             val += wv[j] * h_next[j]
 
+        return act_logits, sig_logits, val, h_next, z, r, n
+
+    def _pure_python_forward(
+        self, obs: List[float], h_prev: List[float]
+    ) -> Tuple[List[float], List[float], float, List[float]]:
+        act_logits, sig_logits, val, h_next, _, _, _ = self._pure_python_forward_cache(obs, h_prev)
         return act_logits, sig_logits, val, h_next
 
     def step_decision(
@@ -452,18 +462,54 @@ class AgentBrain:
         self.death_penalty_history.append(record)
         return record
 
-    def learn_from_experience(self, batch_size: int = 12, gamma: float = 0.92) -> Optional[float]:
-        """Perform a bounded local policy-gradient + value update using this agent's own experiences."""
+    def learn_from_experience(
+        self,
+        batch_size: int = 12,
+        gamma: float = 0.92,
+        gae_lambda: float = 0.90,
+        entropy_coef: float = 0.018,
+    ) -> Optional[float]:
+        """
+        Perform a bounded Actor-Critic + GAE(lambda) + entropy-regularized update using
+        this agent's own experience sliding window (without discarding older memory down to 4).
+        """
         if len(self.experience) < batch_size:
             return None
 
-        batch = self.experience[-batch_size:]
-        # Compute discounted returns locally
+        # Combine most recent sequential trajectory with prioritized surprising older transitions
+        recent_n = min(len(self.experience), batch_size)
+        recent_tail = self.experience[-recent_n:]
+        older_pool = self.experience[:-recent_n]
+        extra_surprises: List[ExperienceItem] = []
+        if older_pool:
+            scored = sorted(
+                older_pool,
+                key=lambda e: abs(e.reward - e.value_est),
+                reverse=True,
+            )
+            extra_surprises = scored[: min(4, len(scored))]
+
+        batch = extra_surprises + recent_tail
+
+        # Bootstrapped GAE(lambda) over sequential recent tail and local TD for prioritized items
         returns = [0.0] * len(batch)
-        running = 0.0
+        advantages_raw = [0.0] * len(batch)
+        gae = 0.0
         for i in range(len(batch) - 1, -1, -1):
-            running = batch[i].reward + gamma * running
-            returns[i] = running
+            is_tail_seq = i >= len(extra_surprises)
+            next_val = batch[i + 1].value_est if (is_tail_seq and i + 1 < len(batch)) else batch[i].value_est
+            delta = batch[i].reward + gamma * next_val - batch[i].value_est
+            if is_tail_seq:
+                gae = delta + gamma * gae_lambda * gae
+            else:
+                gae = delta
+            advantages_raw[i] = max(-4.0, min(4.0, gae))
+            returns[i] = max(-6.0, min(6.0, batch[i].value_est + advantages_raw[i]))
+
+        mean_td = sum(abs(a) for a in advantages_raw) / max(1, len(advantages_raw))
+        mean_rew = sum(b.reward for b in batch) / max(1, len(batch))
+        entropy_val = 0.0
+        v_loss_val = 0.0
 
         if TORCH_AVAILABLE and self._net is not None and self._opt is not None and torch is not None:
             obs_t = torch.tensor([b.obs for b in batch], dtype=torch.float32)
@@ -471,20 +517,23 @@ class AgentBrain:
             act_t = torch.tensor([b.action_idx for b in batch], dtype=torch.long)
             sig_t = torch.tensor([b.signal_idx for b in batch], dtype=torch.long)
             ret_t = torch.tensor(returns, dtype=torch.float32)
+            adv_t = torch.tensor(advantages_raw, dtype=torch.float32)
+            if adv_t.numel() > 1:
+                adv_t = (adv_t - adv_t.mean()) / (adv_t.std(unbiased=False) + 1e-6)
 
             act_logits, sig_logits, values, _ = self._net(obs_t, h_t)
-            advantages = ret_t - values.detach()
-            if advantages.numel() > 1:
-                std = advantages.std(unbiased=False) + 1e-6
-                advantages = (advantages - advantages.mean()) / std
-
             log_probs = F.log_softmax(act_logits, dim=-1)
+            probs = torch.exp(log_probs)
+            entropy = -(probs * log_probs).sum(dim=-1).mean()
+            entropy_val = float(entropy.item())
+
             chosen_lp = log_probs.gather(1, act_t.unsqueeze(1)).squeeze(1)
             sig_lp = F.log_softmax(sig_logits, dim=-1).gather(1, sig_t.unsqueeze(1)).squeeze(1)
 
-            policy_loss = -(chosen_lp * advantages).mean() - 0.1 * (sig_lp * advantages).mean()
-            value_loss = F.mse_loss(values, ret_t)
-            loss = policy_loss + 0.5 * value_loss
+            policy_loss = -(chosen_lp * adv_t).mean() - 0.12 * (sig_lp * adv_t).mean() - entropy_coef * entropy
+            value_loss_t = F.mse_loss(values, ret_t)
+            v_loss_val = float(value_loss_t.item())
+            loss = policy_loss + 0.55 * value_loss_t
 
             self._opt.zero_grad()
             loss.backward()
@@ -492,58 +541,115 @@ class AgentBrain:
             self._opt.step()
             loss_val = float(loss.item())
         else:
-            # Pure-Python Actor-Critic policy gradient update on output + recurrent weights
-            mean_ret = sum(returns) / len(returns)
-            var_ret = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-            std_ret = math.sqrt(var_ret) + 1e-6
+            # Pure-Python Actor-Critic with full GRU gate updates + entropy regularization
+            mean_adv = sum(advantages_raw) / len(advantages_raw)
+            var_adv = sum((a - mean_adv) ** 2 for a in advantages_raw) / len(advantages_raw)
+            std_adv = math.sqrt(var_adv) + 1e-6
             lr = self.learning_rate
             total_loss = 0.0
+            total_ent = 0.0
+            total_v_loss = 0.0
             w = self._w
+            H = self.hidden_dim
 
             for idx, item in enumerate(batch):
-                act_logits, sig_logits, val, h_next = self._pure_python_forward(item.obs, item.hidden_before)
-                adv = (returns[idx] - val) / std_ret
-                adv = max(-3.0, min(3.0, adv))
-                val_err = returns[idx] - val
-                total_loss += 0.5 * (val_err ** 2) - adv * math.log(max(1e-6, _softmax(act_logits)[item.action_idx]))
+                act_logits, sig_logits, val, h_next, z_g, r_g, n_g = self._pure_python_forward_cache(
+                    item.obs, item.hidden_before
+                )
+                adv = max(-3.0, min(3.0, (advantages_raw[idx] - mean_adv) / std_adv))
+                val_err = max(-3.0, min(3.0, returns[idx] - val))
+                total_v_loss += 0.5 * (val_err ** 2)
 
                 probs_a = _softmax(act_logits)
+                ent = -sum(p * math.log(max(1e-8, p)) for p in probs_a)
+                total_ent += ent
+                log_pa = math.log(max(1e-8, probs_a[item.action_idx]))
+                total_loss += 0.5 * (val_err ** 2) - adv * log_pa - entropy_coef * ent
+
+                # Backprop actor + entropy gradient to action head & accumulate hidden gradient
+                d_h = [0.0] * H
                 for a in range(self.num_actions):
-                    grad_logit = (probs_a[a] - (1.0 if a == item.action_idx else 0.0)) * adv
+                    pi = probs_a[a]
+                    ent_grad = entropy_coef * pi * (math.log(max(1e-8, pi)) + ent)
+                    grad_logit = (pi - (1.0 if a == item.action_idx else 0.0)) * adv + ent_grad
                     w["b_act"][a] -= lr * grad_logit
                     row = w["W_act"][a]
-                    for j in range(self.hidden_dim):
+                    for j in range(H):
+                        d_h[j] -= grad_logit * row[j]
                         row[j] -= lr * grad_logit * h_next[j]
 
                 probs_s = _softmax(sig_logits)
                 for k in range(self.num_signals):
-                    grad_s = 0.1 * (probs_s[k] - (1.0 if k == item.signal_idx else 0.0)) * adv
+                    grad_s = 0.12 * (probs_s[k] - (1.0 if k == item.signal_idx else 0.0)) * adv
                     w["b_sig"][k] -= lr * grad_s
                     row = w["W_sig"][k]
-                    for j in range(self.hidden_dim):
+                    for j in range(H):
+                        d_h[j] -= 0.12 * grad_s * row[j]
                         row[j] -= lr * grad_s * h_next[j]
 
                 # Value head update
-                w["b_val"][0] += lr * 0.5 * val_err
+                w["b_val"][0] += lr * 0.55 * val_err
                 wv = w["W_val"][0]
-                for j in range(self.hidden_dim):
-                    wv[j] += lr * 0.5 * val_err * h_next[j]
+                for j in range(H):
+                    d_h[j] += 0.55 * val_err * wv[j]
+                    wv[j] += lr * 0.55 * val_err * h_next[j]
 
-                # Lightweight recurrent input-projection update driven by advantage signal
-                for i in range(self.hidden_dim):
-                    delta_h = adv * w["W_act"][item.action_idx][i] * (1.0 - h_next[i] * h_next[i])
-                    delta_h = max(-0.5, min(0.5, delta_h))
-                    w["b_n"][i] += lr * 0.2 * delta_h
+                # Full GRU gate updates (update gate z, new candidate n, reset gate r)
+                lr_rec = lr * 0.25
+                d_r = [0.0] * H
+                for i in range(H):
+                    dh_i = max(-0.8, min(0.8, d_h[i]))
+                    # h_next[i] = (1 - z[i]) * n[i] + z[i] * h_prev[i]
+                    dz = dh_i * (item.hidden_before[i] - n_g[i]) * z_g[i] * (1.0 - z_g[i])
+                    dn = dh_i * (1.0 - z_g[i]) * (1.0 - n_g[i] * n_g[i])
+                    dz = max(-0.4, min(0.4, dz))
+                    dn = max(-0.4, min(0.4, dn))
+
+                    w["b_z"][i] += lr_rec * dz
+                    w["b_n"][i] += lr_rec * dn
+                    row_iz = w["W_iz"][i]
                     row_in = w["W_in"][i]
                     for j in range(self.obs_dim):
-                        row_in[j] += lr * 0.2 * delta_h * item.obs[j]
+                        xj = item.obs[j]
+                        row_iz[j] += lr_rec * dz * xj
+                        row_in[j] += lr_rec * dn * xj
+
+                    row_hz = w["W_hz"][i]
+                    row_hn = w["W_hn"][i]
+                    ri = r_g[i]
+                    dr_acc = 0.0
+                    for j in range(H):
+                        hj = item.hidden_before[j]
+                        row_hz[j] += lr_rec * dz * hj
+                        row_hn[j] += lr_rec * dn * (ri * hj)
+                        dr_acc += dn * row_hn[j] * hj
+                    d_r[i] = dr_acc * ri * (1.0 - ri)
+
+                for i in range(H):
+                    dr = max(-0.4, min(0.4, d_r[i]))
+                    if abs(dr) < 1e-6:
+                        continue
+                    w["b_r"][i] += lr_rec * dr
+                    row_ir = w["W_ir"][i]
+                    row_hr = w["W_hr"][i]
+                    for j in range(self.obs_dim):
+                        row_ir[j] += lr_rec * dr * item.obs[j]
+                    for j in range(H):
+                        row_hr[j] += lr_rec * dr * item.hidden_before[j]
 
             loss_val = total_loss / len(batch)
+            entropy_val = total_ent / len(batch)
+            v_loss_val = total_v_loss / len(batch)
 
         self.total_updates += 1
         self.last_loss = round(loss_val, 6)
-        # Keep short tail of recent experiences so buffer stays fresh
-        self.experience = self.experience[-4:]
+        self.mean_td_error = round(mean_td, 5)
+        self.policy_entropy = round(entropy_val, 5)
+        self.mean_recent_reward = round(mean_rew, 5)
+        self.value_loss = round(v_loss_val, 5)
+        # Maintain healthy sliding window (retain up to 48 recent experiences, never truncate down to 4)
+        if len(self.experience) > 48:
+            self.experience = self.experience[-48:]
         return loss_val
 
     def weight_fingerprint(self) -> str:
@@ -571,6 +677,10 @@ class AgentBrain:
             "hidden_state": self.hidden_state,
             "total_updates": self.total_updates,
             "last_loss": self.last_loss,
+            "mean_td_error": self.mean_td_error,
+            "policy_entropy": self.policy_entropy,
+            "mean_recent_reward": self.mean_recent_reward,
+            "value_loss": self.value_loss,
             "experience": [
                 {
                     "obs": e.obs,
@@ -608,6 +718,10 @@ class AgentBrain:
         brain.hidden_state = list(state["hidden_state"])
         brain.total_updates = int(state.get("total_updates", 0))
         brain.last_loss = float(state.get("last_loss", 0.0))
+        brain.mean_td_error = float(state.get("mean_td_error", 0.0))
+        brain.policy_entropy = float(state.get("policy_entropy", 0.0))
+        brain.mean_recent_reward = float(state.get("mean_recent_reward", 0.0))
+        brain.value_loss = float(state.get("value_loss", 0.0))
         brain.experience = [
             ExperienceItem(
                 obs=list(e["obs"]),

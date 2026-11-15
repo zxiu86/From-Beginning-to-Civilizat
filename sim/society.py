@@ -231,14 +231,36 @@ class SocietyEngine:
             return events
 
         if existing is not None and len(existing.member_ids) >= 3:
-            # Organic norm emergence after conflict or mediation practice
-            candidate_norms = ["no_theft", "no_murder", "share_surplus", "electoral_renewal"]
-            unadopted = [n for n in candidate_norms if n not in existing.norms]
-            if unadopted and rng.random() < (0.04 + 0.15 * proposer_mediation_skill):
-                # Only allow electoral_renewal if basic norms/governance already exist
-                if unadopted[0] == "electoral_renewal" and len(existing.norms) < 2:
-                    return events
-                new_norm = unadopted[0]
+            # Organic experience-driven norm emergence (norms only appear if lived conditions motivate them)
+            has_theft = any(
+                c.crime_type in ("theft", "deception")
+                and (c.perpetrator_id in existing.member_ids or c.victim_id in existing.member_ids)
+                for c in self.crimes[-120:]
+            )
+            has_violence = any(
+                c.crime_type in ("murder", "assault")
+                and (c.perpetrator_id in existing.member_ids or c.victim_id in existing.member_ids)
+                for c in self.crimes[-120:]
+            )
+            mature_tenure = (tick - existing.founded_tick) >= 120
+
+            eligible_norms: List[str] = []
+            if "no_theft" not in existing.norms and (has_theft or self.crimes_by_type.get("theft", 0) > 0):
+                eligible_norms.append("no_theft")
+            if "no_murder" not in existing.norms and (has_violence or self.crimes_by_type.get("murder", 0) > 0):
+                eligible_norms.append("no_murder")
+            if "share_surplus" not in existing.norms and (self.total_barters > 0 or existing.resolved_disputes > 0):
+                eligible_norms.append("share_surplus")
+            if (
+                "electoral_renewal" not in existing.norms
+                and len(existing.norms) >= 2
+                and existing.governance_type in ("elder_council", "single_leader")
+                and mature_tenure
+            ):
+                eligible_norms.append("electoral_renewal")
+
+            if eligible_norms and rng.random() < (0.04 + 0.16 * proposer_mediation_skill):
+                new_norm = rng.choice(eligible_norms)
                 existing.norms.append(new_norm)
                 if self.first_norm_tick is None:
                     self.first_norm_tick = tick
@@ -280,14 +302,34 @@ class SocietyEngine:
         mediator_id: int,
         x: float,
         y: float,
+        living_agents: Optional[dict] = None,
     ) -> Optional[dict]:
-        """Mediate a known unresolved crime among group/nearby members."""
+        """Mediate a known unresolved crime among group members with real restitution & social consequences."""
         grp = self.get_agent_group(mediator_id)
         for c in reversed(self.crimes[-100:]):
             if c.known_to_society and not c.resolved:
                 if grp is not None and (c.perpetrator_id in grp.member_ids or c.victim_id in grp.member_ids):
                     c.resolved = True
-                    c.resolution_type = "group_mediation_sanction"
+                    resolution = "group_mediation_sanction"
+                    perp = living_agents.get(c.perpetrator_id) if living_agents else None
+                    vict = living_agents.get(c.victim_id) if living_agents else None
+
+                    if c.crime_type in ("theft", "deception") and perp and perp.is_alive and vict and vict.is_alive:
+                        restitution = min(0.5, max(0.0, perp.inventory.get("food", 0.0)))
+                        if restitution > 0.05:
+                            perp.inventory["food"] -= restitution
+                            vict.inventory["food"] = min(10.0, vict.inventory.get("food", 0.0) + restitution)
+                            resolution = "restitution_enforced"
+                    elif c.crime_type == "murder" and c.perpetrator_id in grp.member_ids and self.repeat_offenders.get(c.perpetrator_id, 0) >= 2:
+                        grp.member_ids = [mid for mid in grp.member_ids if mid != c.perpetrator_id]
+                        resolution = "community_expulsion"
+
+                    if vict and vict.is_alive:
+                        vict.memory.update_social(mediator_id, 0.08, 0.14)
+                        if perp and perp.is_alive:
+                            vict.memory.update_social(perp.agent_id, 0.02, 0.12)
+
+                    c.resolution_type = resolution
                     grp.resolved_disputes += 1
                     grp.sanction_count += 1
                     self.disputes_resolved += 1
@@ -296,7 +338,7 @@ class SocietyEngine:
                         "agent_ids": [mediator_id, c.perpetrator_id, c.victim_id],
                         "x": x,
                         "y": y,
-                        "description": f"Dispute over {c.crime_type} (#{c.crime_id}) mediated by agent {mediator_id}.",
+                        "description": f"Dispute over {c.crime_type} (#{c.crime_id}) resolved via {resolution} by agent {mediator_id}.",
                     }
         return None
 

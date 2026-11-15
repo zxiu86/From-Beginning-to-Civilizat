@@ -51,6 +51,8 @@ class MemoryEngine:
             "symbol_marking": 0.0,
             "mediation": 0.0,
         }
+        # Personal experiential outcome summary per action (strictly private, zero global leakage)
+        self.action_outcomes: Dict[str, Dict[str, float]] = {}
 
     def record_episode(
         self,
@@ -92,8 +94,20 @@ class MemoryEngine:
             oldest_key = min(self.spatial_map, key=lambda k: self.spatial_map[k].last_seen_tick)
             del self.spatial_map[oldest_key]
 
+    def remember_hazard(self, tick: int, cell_idx: int, x: float, y: float, severity: float = 1.0) -> None:
+        self.remember_location(tick=tick, cell_idx=cell_idx, x=x, y=y, kind="hazard", richness=max(0.1, min(3.0, severity)))
+
     def recall_nearest(self, x: float, y: float, kind: str) -> Optional[SpatialTrace]:
         candidates = [tr for tr in self.spatial_map.values() if tr.kind == kind and tr.richness > 0.05]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda tr: (tr.x - x) ** 2 + (tr.y - y) ** 2)
+
+    def recall_nearest_hazard(self, tick: int, x: float, y: float, max_age_ticks: int = 180) -> Optional[SpatialTrace]:
+        candidates = [
+            tr for tr in self.spatial_map.values()
+            if tr.kind == "hazard" and (tick - tr.last_seen_tick) <= max_age_ticks and tr.richness > 0.1
+        ]
         if not candidates:
             return None
         return min(candidates, key=lambda tr: (tr.x - x) ** 2 + (tr.y - y) ** 2)
@@ -117,6 +131,27 @@ class MemoryEngine:
         cur = self.skills.get(skill_name, 0.0)
         self.skills[skill_name] = round(max(0.0, min(1.0, cur + amount * (1.0 - 0.5 * cur))), 4)
 
+    def record_action_outcome(self, action_name: str, reward: float) -> None:
+        entry = self.action_outcomes.get(action_name)
+        if entry is None:
+            self.action_outcomes[action_name] = {
+                "count": 1.0,
+                "ema_reward": round(max(-3.0, min(3.0, reward)), 4),
+            }
+        else:
+            cnt = entry.get("count", 0.0) + 1.0
+            alpha = 0.18 if cnt > 5 else (1.0 / cnt)
+            prev = entry.get("ema_reward", 0.0)
+            ema = (1.0 - alpha) * prev + alpha * max(-3.0, min(3.0, reward))
+            entry["count"] = cnt
+            entry["ema_reward"] = round(ema, 4)
+
+    def outcome_preference(self, action_name: str) -> float:
+        entry = self.action_outcomes.get(action_name)
+        if not entry or entry.get("count", 0.0) < 2.0:
+            return 0.0
+        return max(-0.45, min(0.45, float(entry.get("ema_reward", 0.0)) * 0.45))
+
     def to_dict(self) -> dict:
         return {
             "episodic": [asdict(e) for e in self.episodic],
@@ -124,6 +159,7 @@ class MemoryEngine:
             "familiarity": {str(k): v for k, v in self.familiarity.items()},
             "trust": {str(k): v for k, v in self.trust.items()},
             "skills": dict(self.skills),
+            "action_outcomes": {str(k): dict(v) for k, v in self.action_outcomes.items()},
         }
 
     @classmethod
@@ -137,4 +173,9 @@ class MemoryEngine:
         mem.trust = {int(k): float(v) for k, v in data.get("trust", {}).items()}
         if "skills" in data:
             mem.skills.update({str(k): float(v) for k, v in data["skills"].items()})
+        if "action_outcomes" in data:
+            mem.action_outcomes = {
+                str(k): {str(sk): float(sv) for sk, sv in v.items()}
+                for k, v in data.get("action_outcomes", {}).items()
+            }
         return mem

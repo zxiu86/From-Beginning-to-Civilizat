@@ -79,6 +79,7 @@ class PersistenceEngine:
         timeline_kind: str = "original",
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
+        recovery_state: Optional[dict] = None,
     ) -> dict:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         clock.flush_elapsed_runtime()
@@ -154,6 +155,7 @@ class PersistenceEngine:
                     ("history", json.dumps(history.to_snapshot())),
                     ("timeline_series", json.dumps(timeline_series or [])),
                     ("rebirth_records", json.dumps(rebirth_records or [])),
+                    ("recovery_state", json.dumps(recovery_state or {})),
                 ]
                 cur.executemany("INSERT INTO subsystems (name, data_json) VALUES (?, ?)", sub_rows)
                 conn.commit()
@@ -205,6 +207,7 @@ class PersistenceEngine:
                 timeline_kind=timeline_kind,
                 branch_point_tick=branch_point_tick,
                 rebirth_records=rebirth_records,
+                recovery_state=recovery_state,
             )
             with open(obs_path, "w", encoding="utf-8") as fh:
                 json.dump(obs_payload, fh, ensure_ascii=False, separators=(",", ":"))
@@ -219,6 +222,7 @@ class PersistenceEngine:
             ]
             checksums = {fname: _sha256_file(stage_dir / fname) for fname in files_to_hash}
             living_count = sum(1 for a in agents.all_agents.values() if a.is_alive)
+            rec_info = recovery_state or {}
             manifest = {
                 "world_id": world_id,
                 "timeline_id": resolved_timeline_id,
@@ -235,6 +239,8 @@ class PersistenceEngine:
                 "living_population": living_count,
                 "total_agents_ever": len(agents.all_agents),
                 "next_agent_id": agents.next_agent_id,
+                "recovery_cycle_count": int(rec_info.get("recovery_cycle_count", 0)),
+                "current_cycle_number": int(rec_info.get("current_cycle_number", 1)),
                 "checksums": checksums,
             }
             manifest_path = stage_dir / "manifest.json"
@@ -376,6 +382,9 @@ class PersistenceEngine:
         manifest["restored_rebirth_records"] = (
             json.loads(subs["rebirth_records"]) if "rebirth_records" in subs else []
         )
+        manifest["restored_recovery_state"] = (
+            json.loads(subs["recovery_state"]) if "recovery_state" in subs else {}
+        )
 
         return world_id, config, clock, world, agent_engine, comm, society, history, rng, manifest
 
@@ -397,6 +406,7 @@ class PersistenceEngine:
         timeline_kind: str = "original",
         branch_point_tick: Optional[int] = None,
         rebirth_records: Optional[List[dict]] = None,
+        recovery_state: Optional[dict] = None,
     ) -> dict:
         """Read-only structured JSON contract for Civilization Observatory (zero mutation, zero global leaks in FPV)."""
         living_dict = {aid: ag for aid, ag in agents.all_agents.items() if ag.is_alive}
@@ -444,6 +454,7 @@ class PersistenceEngine:
                 base_vision=base_vision,
                 base_hearing=base_hearing,
                 bucket_size=bucket_size,
+                tick=clock.tick,
             )
             vis_fauna_ids = [
                 f.fauna_id
@@ -607,6 +618,41 @@ class PersistenceEngine:
             for (hx, hy), cnt in society.exchange_hubs.items()
         ]
 
+        brains_with_updates = [a.brain for a in living if a.brain is not None and a.brain.total_updates > 0]
+        learning_telemetry = {
+            "living_brains_count": sum(1 for a in living if a.brain is not None),
+            "agents_with_updates": len(brains_with_updates),
+            "avg_updates_per_agent": round(
+                sum(b.total_updates for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                2,
+            ) if brains_with_updates else 0.0,
+            "mean_td_error": round(
+                sum(b.mean_td_error for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                4,
+            ) if brains_with_updates else 0.0,
+            "mean_policy_entropy": round(
+                sum(b.policy_entropy for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                4,
+            ) if brains_with_updates else 0.0,
+            "mean_loss": round(
+                sum(b.last_loss for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                5,
+            ) if brains_with_updates else 0.0,
+            "mean_recent_reward": round(
+                sum(b.mean_recent_reward for b in brains_with_updates) / max(1, len(brains_with_updates)),
+                4,
+            ) if brains_with_updates else 0.0,
+        }
+
+        rec_out = dict(recovery_state) if recovery_state else {
+            "auto_recover_on_extinction": config.auto_recover_on_extinction if config else True,
+            "recovery_founder_count": config.recovery_founder_count if config else 4,
+            "recovery_cycle_count": 0,
+            "current_cycle_number": 1,
+            "current_cycle_start_tick": 0,
+            "population_recovery_history": [],
+        }
+
         return {
             "export_schema_version": SCHEMA_VERSION,
             "exported_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -616,6 +662,8 @@ class PersistenceEngine:
             "timeline_kind": timeline_kind,
             "branch_point_tick": branch_point_tick,
             "rebirth_records": list(rebirth_records or []),
+            "recovery_state": rec_out,
+            "learning_telemetry": learning_telemetry,
             "backend": backend_name,
             "clock": clock.to_dict(),
             "engine_capabilities": {

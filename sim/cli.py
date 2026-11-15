@@ -86,6 +86,7 @@ def _write_frame_snapshot(engine: SimulationEngine, frames_dir: Path) -> None:
         timeline_kind=engine.timeline_kind,
         branch_point_tick=engine.branch_point_tick,
         rebirth_records=engine.rebirth_records,
+        recovery_state=engine._recovery_state_dict(),
     )
     frame_path = frames_dir / f"tick_{engine.clock.tick:06d}.json"
     frame_path.write_text(json.dumps(obs, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
@@ -163,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "step-checkpoint":
         try:
             engine = SimulationEngine.resume_from_checkpoint(args.checkpoint_dir, require_torch=args.require_torch)
+            engine._active_checkpoint_dir = args.checkpoint_dir
         except CheckpointIntegrityError as exc:
             logging.error("Step aborted: %s", exc)
             return 2

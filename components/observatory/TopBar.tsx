@@ -3,6 +3,7 @@
 import React from 'react';
 import {
   AlertTriangle,
+  Bug,
   Clock,
   FolderOpen,
   Globe,
@@ -13,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import {formatDurationSeconds} from '@/lib/observatory/adapter';
+import {safeFixed} from '@/lib/observatory/diagnostics';
 import type {Translations} from '@/lib/observatory/i18n';
 import type {
   Locale,
@@ -31,12 +33,14 @@ interface TopBarProps {
   softwareGl: boolean;
   liveApiAvailable: boolean;
   creatingLiveWorld: boolean;
+  diagnosticErrorCount?: number;
   onToggleLocale: () => void;
   onChangeQuality: (q: QualityPreset) => void;
   onUploadClick: () => void;
   onOpenMultiImporter: () => void;
   onStartLiveWorld: () => void;
   onRefreshPublished: () => void;
+  onOpenDiagnostics?: () => void;
 }
 
 export default function TopBar({
@@ -49,12 +53,14 @@ export default function TopBar({
   softwareGl,
   liveApiAvailable,
   creatingLiveWorld,
+  diagnosticErrorCount = 0,
   onToggleLocale,
   onChangeQuality,
   onUploadClick,
   onOpenMultiImporter,
   onStartLiveWorld,
   onRefreshPublished,
+  onOpenDiagnostics,
 }: TopBarProps) {
   const sourceLabel =
     sourceMode === 'live_runner'
@@ -147,8 +153,16 @@ export default function TopBar({
                 {t.weather[snapshot.ecosystem.weather.condition] ?? snapshot.ecosystem.weather.condition}
               </span>
               <span className="font-mono tabular-nums text-[#E6EDF3]">
-                {snapshot.ecosystem.weather.temperature_c.toFixed(1)}°C
+                {safeFixed(snapshot.ecosystem.weather.temperature_c, 1)}°C
               </span>
+              {(snapshot.recovery_state?.current_cycle_number ?? 1) > 1 && (
+                <>
+                  <span className="text-white/20">·</span>
+                  <span className="font-mono text-[#57b8d8]">
+                    C#{snapshot.recovery_state?.current_cycle_number}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -220,6 +234,24 @@ export default function TopBar({
               </span>
             )}
           </div>
+
+          {onOpenDiagnostics && (
+            <button
+              type="button"
+              onClick={onOpenDiagnostics}
+              title={t.diagTitle}
+              className={`flex items-center gap-1 rounded border px-2 py-1.5 text-xs transition ${
+                diagnosticErrorCount > 0
+                  ? 'border-red-500/50 bg-red-500/15 text-red-200 hover:bg-red-500/25'
+                  : 'border-white/10 bg-[#18212C] text-[#9FB0C3] hover:border-white/25 hover:text-[#E6EDF3]'
+              }`}
+            >
+              <Bug className="h-3.5 w-3.5" />
+              {diagnosticErrorCount > 0 && (
+                <span className="font-mono text-[10px] font-bold">{diagnosticErrorCount}</span>
+              )}
+            </button>
+          )}
 
           <button
             type="button"

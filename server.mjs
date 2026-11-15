@@ -59,6 +59,8 @@ async function readRunSummary(runId) {
     sim_date: snap.clock?.sim_date ?? '',
     living_count: Number(snap.demographics?.living_count ?? 0),
     deceased_count: Number(snap.demographics?.deceased_count ?? 0),
+    recovery_cycle_count: Number(snap.recovery_state?.recovery_cycle_count ?? 0),
+    current_cycle_number: Number(snap.recovery_state?.current_cycle_number ?? 1),
     frame_ticks: frameTicks,
   };
 }
@@ -130,7 +132,7 @@ async function handleApiRequest(req, res, parsedUrl) {
     if (req.method === 'POST' && pathname === '/api/sim/new') {
       const body = await readJsonBody(req);
       const seed = Number.isFinite(Number(body.seed)) ? Math.floor(Number(body.seed)) : 42;
-      const initialPop = Math.max(4, Math.min(200, Math.floor(Number(body.initial_population ?? 40))));
+      const initialPop = Math.max(4, Math.min(300, Math.floor(Number(body.initial_population ?? 100))));
       const maxTicks = Math.max(0, Math.min(300, Math.floor(Number(body.max_ticks ?? 10))));
       const runId = sanitizeRunId(body.id) || `orig_s${seed}_${Date.now()}`;
       const runDir = path.join(RUNS_DIR, runId);

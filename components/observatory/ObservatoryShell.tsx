@@ -8,6 +8,11 @@ import {
   SnapshotValidationError,
   validateAndNormalizeSnapshot,
 } from '@/lib/observatory/adapter';
+import {
+  getDiagnosticEntries,
+  reportClientError,
+  subscribeDiagnostics,
+} from '@/lib/observatory/diagnostics';
 import {getTranslations} from '@/lib/observatory/i18n';
 import type {ImportedTimelineBundle} from '@/lib/observatory/importer';
 import type {
@@ -24,7 +29,9 @@ import AgentInspector from './AgentInspector';
 import BottomDock from './BottomDock';
 import CivilizationDrawer from './CivilizationDrawer';
 import ComparisonDrawer from './ComparisonDrawer';
+import DiagnosticsModal from './DiagnosticsModal';
 import EmptyWorldOverlay from './EmptyWorldOverlay';
+import ErrorBoundary from './ErrorBoundary';
 import FpvHud from './FpvHud';
 import HistoryDrawer from './HistoryDrawer';
 import JsonImporterModal from './JsonImporterModal';
@@ -82,7 +89,19 @@ export default function ObservatoryShell() {
     importedFrames: Record<number, ObservatorySnapshot>;
   } | null>(null);
 
+  // Diagnostics & Renderer Status
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [diagnosticErrorCount, setDiagnosticErrorCount] = useState(0);
+  const [webglMode, setWebglMode] = useState<'webgl' | 'fallback_2d'>('webgl');
+  const [webglReason, setWebglReason] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const syncCount = () => setDiagnosticErrorCount(getDiagnosticEntries().length);
+    syncCount();
+    return subscribeDiagnostics(syncCount);
+  }, []);
 
   const t = useMemo(() => getTranslations(locale), [locale]);
   const agentLookup = useMemo(() => buildAgentLookupMap(snapshot), [snapshot]);
@@ -238,7 +257,7 @@ export default function ObservatoryShell() {
       const res = await fetch('/api/sim/new', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({seed: Math.floor(Date.now() % 100000), initial_population: 40, max_ticks: 10}),
+        body: JSON.stringify({seed: Math.floor(Date.now() % 100000), initial_population: 100, max_ticks: 10}),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const payload = await res.json();
@@ -254,6 +273,7 @@ export default function ObservatoryShell() {
       setResetSignal((n) => n + 1);
       await refreshLiveStatus();
     } catch (err) {
+      reportClientError('ObservatoryShell:handleStartLiveWorld', err);
       setUploadError(err instanceof Error ? err.message : 'Failed to start live world.');
     } finally {
       setCreatingLiveWorld(false);
@@ -305,11 +325,15 @@ export default function ObservatoryShell() {
         const parsed = validateAndNormalizeSnapshot(payload.snapshot);
         setSnapshot(parsed);
         setFrameTicks(Array.isArray(payload.frame_ticks) ? payload.frame_ticks : []);
-        if (parsed.demographics.living_count === 0) {
+        if (
+          parsed.demographics.living_count === 0 &&
+          !parsed.recovery_state?.auto_recover_on_extinction
+        ) {
           setIsPlaying(false);
         }
         await refreshLiveStatus();
-      } catch {
+      } catch (stepErr) {
+        reportClientError('ObservatoryShell:stepLiveSimulation', stepErr);
         setIsPlaying(false);
       } finally {
         setIsStepping(false);
@@ -529,30 +553,43 @@ export default function ObservatoryShell() {
           softwareGl={softwareGl}
           liveApiAvailable={liveApiAvailable}
           creatingLiveWorld={creatingLiveWorld}
+          diagnosticErrorCount={diagnosticErrorCount}
           onToggleLocale={() => setLocale((prev) => (prev === 'ar' ? 'en' : 'ar'))}
           onChangeQuality={setQuality}
           onUploadClick={() => fileInputRef.current?.click()}
           onOpenMultiImporter={() => setImporterOpen(true)}
           onStartLiveWorld={() => void handleStartLiveWorld()}
           onRefreshPublished={() => void loadPublishedSnapshot()}
+          onOpenDiagnostics={() => setDiagnosticsOpen(true)}
         />
       )}
 
-      {/* Full-Bleed 3D World Canvas */}
+      {/* Full-Bleed 3D World Canvas (guarded by ErrorBoundary + 2D Canvas fallback) */}
       <main className="relative flex-1 overflow-hidden">
-        <WorldCanvas3D
-          snapshot={snapshot}
-          quality={quality}
-          selectedAgentId={selectedAgentId}
-          followAgent={followAgent}
-          fpvAgent={fpvAgent}
-          replayTarget={replayTarget}
-          resetSignal={resetSignal}
-          flyToSignal={flyToSignal}
-          onSelectAgent={handleSelectAgentFrom3D}
-          onSoftwareGlDetected={setSoftwareGl}
-          onFpsUpdate={setFps}
-        />
+        <ErrorBoundary
+          scope="canvas3d"
+          diagnosticsLabel={t.diagButton}
+          onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+        >
+          <WorldCanvas3D
+            t={t}
+            snapshot={snapshot}
+            quality={quality}
+            selectedAgentId={selectedAgentId}
+            followAgent={followAgent}
+            fpvAgent={fpvAgent}
+            replayTarget={replayTarget}
+            resetSignal={resetSignal}
+            flyToSignal={flyToSignal}
+            onSelectAgent={handleSelectAgentFrom3D}
+            onSoftwareGlDetected={setSoftwareGl}
+            onFpsUpdate={setFps}
+            onWebglStatusChange={(st) => {
+              setWebglMode(st.mode);
+              setWebglReason(st.reason);
+            }}
+          />
+        </ErrorBoundary>
 
         {/* Honest Empty State when no real snapshot is loaded */}
         {!snapshot && (
@@ -710,6 +747,19 @@ export default function ObservatoryShell() {
           onClose={() => setImporterOpen(false)}
           onCommitBundle={handleCommitImportedBundle}
           onRollback={handleRollbackImport}
+        />
+
+        {/* Client Diagnostics & Error Guard Modal */}
+        <DiagnosticsModal
+          t={t}
+          open={diagnosticsOpen}
+          snapshot={snapshot}
+          webglStatus={{
+            mode: webglMode,
+            reason: webglReason,
+            softwareGl,
+          }}
+          onClose={() => setDiagnosticsOpen(false)}
         />
       </main>
     </div>

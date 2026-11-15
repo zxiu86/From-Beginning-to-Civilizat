@@ -38,6 +38,20 @@ class TestWorkflowAndCompliance(unittest.TestCase):
         self.assertNotIn("gh workflow run", text)
         self.assertNotIn("/dispatches", text)
 
+        # Least-privilege permissions (no actions: write needed)
+        self.assertIn("actions: read", text)
+        self.assertIn("contents: read", text)
+        self.assertNotIn("actions: write", text)
+
+        # Simplified automatic artifact transfer & strict success-only uploads
+        self.assertIn("scripts/ci_artifact_transfer.py", text)
+        self.assertIn("isolated-training-artifact-", text)
+        self.assertIn("--run-simulation", text)
+        self.assertNotIn("requires a valid 'source_run_id'", text)
+        self.assertNotIn("mode == 'start_training' || inputs.mode == 'resume_training') && always()", text)
+        self.assertNotIn("mode == 'export_trained_population' && always()", text)
+        self.assertNotIn("mode == 'promote_to_civilization' || inputs.mode == 'run_civilization') && always()", text)
+
         # Also ensure pages.yml (if present) has strictly manual workflow_dispatch only
         pages_wf = REPO_ROOT / ".github" / "workflows" / "pages.yml"
         if pages_wf.exists():

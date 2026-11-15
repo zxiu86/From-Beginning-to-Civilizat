@@ -9,6 +9,7 @@ import json
 import os
 import pickle
 import random
+import shutil
 import tempfile
 import uuid
 import zipfile
@@ -24,13 +25,19 @@ from .communication import CommunicationEngine
 from .config import SimulationConfig, detect_hardware_budget
 from .history import HistoryKnowledgeEngine
 from .orchestrator import SimulationEngine
-from .persistence import new_world_id
+from .persistence import PersistenceEngine, new_world_id
 from .society import SocietyEngine
-from .training import IsolatedSurvivalTrainer, TrainingIntegrityError
+from .training import (
+    IsolatedSurvivalTrainer,
+    SUPPORTED_TRAINING_SCHEMA_VERSIONS,
+    TRAINING_SCHEMA_VERSION,
+    TrainingIntegrityError,
+)
 from .world import WorldEngine
 
 
 BUNDLE_FORMAT_VERSION = "1.0.0"
+SUPPORTED_BUNDLE_VERSIONS = {"1.0.0"}
 
 
 class BundleIntegrityError(RuntimeError):
@@ -45,12 +52,25 @@ def export_population_bundle(
     training_checkpoint_dir: Path,
     output_bundle_path: Path,
     require_torch: bool = False,
+    source_run_id: Optional[str] = None,
 ) -> dict:
     """
     Export all trained individuals, their neural weights/optimizers, memories, skills,
     traits, and training analytics into a SINGLE compressed bundle file — strictly
     excluding the 100 isolated training environments.
     """
+    manifest_path = training_checkpoint_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            raw_ckpt_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise BundleIntegrityError(f"Unreadable training manifest.json: {exc}") from exc
+        comp_status = str(raw_ckpt_manifest.get("completion_status") or "completed_success")
+        if comp_status != "completed_success":
+            raise BundleIntegrityError(
+                f"Refusing to export bundle from incomplete/failed training run (completion_status='{comp_status}')."
+            )
+
     try:
         trainer = IsolatedSurvivalTrainer.resume_from_checkpoint(
             training_checkpoint_dir, require_torch=require_torch
@@ -100,6 +120,9 @@ def export_population_bundle(
 
     manifest = {
         "bundle_format_version": BUNDLE_FORMAT_VERSION,
+        "training_schema_version": TRAINING_SCHEMA_VERSION,
+        "completion_status": "completed_success",
+        "source_run_id": str(source_run_id).strip() if source_run_id else None,
         "bundle_id": str(uuid.uuid4()),
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "training_id": trainer.training_id,
@@ -108,6 +131,7 @@ def export_population_bundle(
         "agent_ids": [int(a["agent_id"]) for a in agents_list],
         "backend": trainer.backend_name,
         "neural_architecture": arch,
+        "discovered_techs": dict(trainer.agents.discovered_techs),
         "excludes_training_environments": True,
         "weight_fingerprints": weight_fingerprints,
         "payload_checksums": {
@@ -140,6 +164,8 @@ def _load_and_verify_bundle_parts(
     bundle_path: Path,
     require_torch: bool = False,
     expected_arch: Optional[dict] = None,
+    expected_run_id: Optional[str] = None,
+    verify_brains: bool = False,
 ) -> Tuple[dict, List[dict], Dict[int, dict], dict]:
     if not bundle_path.exists() or not bundle_path.is_file():
         raise BundleIntegrityError(f"Population bundle not found: {bundle_path}")
@@ -165,6 +191,31 @@ def _load_and_verify_bundle_parts(
             manifest = json.loads(zf.read("bundle_manifest.json").decode("utf-8"))
         except Exception as exc:
             raise BundleIntegrityError(f"Corrupt bundle_manifest.json: {exc}") from exc
+
+        bundle_ver = str(manifest.get("bundle_format_version") or "")
+        if bundle_ver not in SUPPORTED_BUNDLE_VERSIONS:
+            raise BundleIntegrityError(
+                f"Incompatible bundle_format_version '{bundle_ver}'; supported: {sorted(SUPPORTED_BUNDLE_VERSIONS)}"
+            )
+
+        t_schema_ver = str(manifest.get("training_schema_version") or "1.0.0")
+        if t_schema_ver not in SUPPORTED_TRAINING_SCHEMA_VERSIONS:
+            raise BundleIntegrityError(
+                f"Incompatible training_schema_version '{t_schema_ver}'; supported: {sorted(SUPPORTED_TRAINING_SCHEMA_VERSIONS)}"
+            )
+
+        comp_status = str(manifest.get("completion_status") or "completed_success")
+        if comp_status != "completed_success":
+            raise BundleIntegrityError(
+                f"Refusing bundle from incomplete/failed training (completion_status='{comp_status}')."
+            )
+
+        if expected_run_id is not None and str(expected_run_id).strip():
+            actual_run_id = str(manifest.get("source_run_id") or "").strip()
+            if actual_run_id != str(expected_run_id).strip():
+                raise BundleIntegrityError(
+                    f"Run ID mismatch: expected source_run_id='{expected_run_id}', bundle has '{actual_run_id or 'none'}'."
+                )
 
         if not manifest.get("excludes_training_environments", False):
             raise BundleIntegrityError("Bundle manifest violates environment exclusion guarantee.")
@@ -202,25 +253,31 @@ def _load_and_verify_bundle_parts(
         raise BundleIntegrityError(f"Corrupt JSON payload inside bundle: {exc}") from exc
 
     brains_buf = io.BytesIO(payload_bytes["brains_state.bin.gz"])
-    if TORCH_AVAILABLE and torch is not None:
-        try:
-            with gzip.GzipFile(fileobj=brains_buf, mode="rb") as gz:
-                brains_raw = torch.load(gz, map_location="cpu", weights_only=False)
-        except Exception:
-            brains_buf.seek(0)
+    try:
+        if TORCH_AVAILABLE and torch is not None:
+            try:
+                with gzip.GzipFile(fileobj=brains_buf, mode="rb") as gz:
+                    brains_raw = torch.load(gz, map_location="cpu", weights_only=False)
+            except Exception:
+                brains_buf.seek(0)
+                with gzip.GzipFile(fileobj=brains_buf, mode="rb") as gz:
+                    brains_raw = pickle.load(gz)
+        else:
+            if require_torch:
+                raise BundleIntegrityError("--require-torch set, but torch is unavailable.")
             with gzip.GzipFile(fileobj=brains_buf, mode="rb") as gz:
                 brains_raw = pickle.load(gz)
-    else:
-        if require_torch:
-            raise BundleIntegrityError("--require-torch set, but torch is unavailable.")
-        with gzip.GzipFile(fileobj=brains_buf, mode="rb") as gz:
-            brains_raw = pickle.load(gz)
+    except BundleIntegrityError:
+        raise
+    except Exception as exc:
+        raise BundleIntegrityError(f"Corrupt or unreadable brains_state.bin.gz inside bundle: {exc}") from exc
 
-    if not isinstance(agents_list, list) or len(agents_list) != int(manifest.get("agent_count", -1)):
+    if not isinstance(agents_list, list) or len(agents_list) != int(manifest.get("agent_count", -1)) or len(agents_list) == 0:
         raise BundleIntegrityError(
             f"Agent count mismatch: manifest={manifest.get('agent_count')}, actual={len(agents_list) if isinstance(agents_list, list) else 'invalid'}"
         )
 
+    expected_fps = manifest.get("weight_fingerprints", {})
     seen_ids = set()
     for a in agents_list:
         aid = int(a["agent_id"])
@@ -229,6 +286,14 @@ def _load_and_verify_bundle_parts(
         seen_ids.add(aid)
         if aid not in brains_raw:
             raise BundleIntegrityError(f"Missing neural brain state for agent {aid} in bundle.")
+        if verify_brains:
+            brain = AgentBrain.from_exported_state(brains_raw[aid], require_torch=require_torch)
+            actual_fp = brain.weight_fingerprint()
+            expected_fp = expected_fps.get(str(aid))
+            if expected_fp and actual_fp != expected_fp:
+                raise BundleIntegrityError(
+                    f"Brain weight fingerprint mismatch for agent {aid}: expected {expected_fp}, got {actual_fp}"
+                )
 
     return manifest, agents_list, brains_raw, training_analytics
 
@@ -237,17 +302,23 @@ def verify_population_bundle(
     bundle_path: Path,
     require_torch: bool = False,
     expected_arch: Optional[dict] = None,
+    expected_run_id: Optional[str] = None,
 ) -> dict:
-    """Strictly validate bundle integrity, checksums, agent IDs, and neural architecture."""
+    """Strictly validate bundle integrity, version, run ID, checksums, agent IDs, brain weights, and neural architecture."""
     manifest, _, _, _ = _load_and_verify_bundle_parts(
         bundle_path=bundle_path,
         require_torch=require_torch,
         expected_arch=expected_arch,
+        expected_run_id=expected_run_id,
+        verify_brains=True,
     )
     return {
         "valid": True,
         "bundle_id": manifest.get("bundle_id"),
         "bundle_format_version": manifest.get("bundle_format_version"),
+        "training_schema_version": manifest.get("training_schema_version", "1.0.0"),
+        "source_run_id": manifest.get("source_run_id"),
+        "completion_status": manifest.get("completion_status", "completed_success"),
         "agent_count": manifest.get("agent_count"),
         "training_ticks_completed": manifest.get("training_ticks_completed"),
         "neural_architecture": manifest.get("neural_architecture"),
@@ -265,11 +336,15 @@ def promote_bundle_to_civilization(
     shutdown_reserve_minutes: float = 12.0,
     checkpoint_interval_minutes: float = 25.0,
     require_torch: bool = False,
+    expected_run_id: Optional[str] = None,
 ) -> SimulationEngine:
     """
     Promote verified trained population bundle into a brand-new full 5 km^2 Civilization World.
     Strictly preserves every agent's identity, neural weights, optimizer state, memories, skills,
-    traits, and training stats, while permanently disabling training rebirth and legacy 4-founder recovery.
+    traits, lexicon, discovered_techs, and training stats, while permanently disabling training rebirth
+    and legacy 4-founder recovery.
+    Never modifies or replaces any existing `civilization_checkpoint_dir` unless full verification
+    and staged checkpoint verification succeed completely.
     """
     hw = detect_hardware_budget()
     configure_torch_cpu(hw.recommended_torch_threads)
@@ -278,6 +353,8 @@ def promote_bundle_to_civilization(
     manifest, agents_list, brains_raw, training_analytics = _load_and_verify_bundle_parts(
         bundle_path=bundle_path,
         require_torch=require_torch,
+        expected_run_id=expected_run_id,
+        verify_brains=True,
     )
 
     arch = manifest["neural_architecture"]
@@ -318,6 +395,9 @@ def promote_bundle_to_civilization(
     world.generate(rng)
 
     agent_engine = AgentEngine(require_torch=require_torch)
+    agent_engine.discovered_techs = {
+        str(k): int(v) for k, v in (manifest.get("discovered_techs") or {}).items()
+    }
     expected_fps = manifest.get("weight_fingerprints", {})
     max_aid = 0
 
@@ -385,6 +465,7 @@ def promote_bundle_to_civilization(
         ),
         metadata={
             "bundle_id": manifest.get("bundle_id"),
+            "source_run_id": manifest.get("source_run_id"),
             "training_id": manifest.get("training_id"),
             "training_ticks_completed": manifest.get("training_ticks_completed"),
             "promoted_agent_count": len(agents_list),
@@ -407,5 +488,34 @@ def promote_bundle_to_civilization(
         training_analytics=training_analytics,
     )
     engine._record_timeline_point()
-    engine.save_checkpoint(civilization_checkpoint_dir)
+
+    # Stage & verify promoted checkpoint BEFORE replacing any existing civilization_checkpoint_dir
+    civilization_checkpoint_dir.parent.mkdir(parents=True, exist_ok=True)
+    stage_dir = Path(tempfile.mkdtemp(prefix=".civ_promote_stage_", dir=str(civilization_checkpoint_dir.parent)))
+    backup_dir: Optional[Path] = None
+    try:
+        engine.save_checkpoint(stage_dir)
+        PersistenceEngine.load_checkpoint(stage_dir, require_torch=require_torch)
+
+        if civilization_checkpoint_dir.exists():
+            backup_dir = Path(
+                tempfile.mkdtemp(prefix=".civ_promote_backup_", dir=str(civilization_checkpoint_dir.parent))
+            )
+            shutil.rmtree(backup_dir)
+            shutil.move(str(civilization_checkpoint_dir), str(backup_dir))
+
+        shutil.move(str(stage_dir), str(civilization_checkpoint_dir))
+        if backup_dir is not None and backup_dir.exists():
+            shutil.rmtree(backup_dir, ignore_errors=True)
+    except Exception:
+        if backup_dir is not None and backup_dir.exists() and not civilization_checkpoint_dir.exists():
+            try:
+                shutil.move(str(backup_dir), str(civilization_checkpoint_dir))
+            except Exception:
+                pass
+        raise
+    finally:
+        if stage_dir.exists():
+            shutil.rmtree(stage_dir, ignore_errors=True)
+
     return engine

@@ -37,6 +37,7 @@ from .world import FaunaEntity, WeatherState, WorldEngine
 logger = logging.getLogger("civilization.training")
 
 TRAINING_SCHEMA_VERSION = "1.0.0"
+SUPPORTED_TRAINING_SCHEMA_VERSIONS = {"1.0.0"}
 
 
 class TrainingIntegrityError(RuntimeError):
@@ -747,7 +748,7 @@ class IsolatedSurvivalTrainer:
         obs["world_terrain"] = None
         return obs
 
-    def save_checkpoint(self, checkpoint_dir: Path) -> dict:
+    def save_checkpoint(self, checkpoint_dir: Path, completion_status: str = "completed_success") -> dict:
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.clock.flush_elapsed_runtime()
         stage_dir = Path(tempfile.mkdtemp(prefix=".train_stage_", dir=str(checkpoint_dir.parent)))
@@ -828,6 +829,7 @@ class IsolatedSurvivalTrainer:
             manifest = {
                 "mode": "isolated_survival_training",
                 "schema_version": TRAINING_SCHEMA_VERSION,
+                "completion_status": completion_status,
                 "training_id": self.training_id,
                 "training_tick": self.clock.tick,
                 "agent_count": len(self.agents.all_agents),
@@ -864,6 +866,11 @@ class IsolatedSurvivalTrainer:
 
         if manifest.get("mode") != "isolated_survival_training":
             raise TrainingIntegrityError(f"Checkpoint mode is '{manifest.get('mode')}', expected 'isolated_survival_training'")
+        schema_ver = str(manifest.get("schema_version") or "")
+        if schema_ver not in SUPPORTED_TRAINING_SCHEMA_VERSIONS:
+            raise TrainingIntegrityError(
+                f"Incompatible training checkpoint schema_version '{schema_ver}'; supported: {sorted(SUPPORTED_TRAINING_SCHEMA_VERSIONS)}"
+            )
 
         checksums = manifest.get("checksums", {})
         required = [
@@ -994,15 +1001,15 @@ class IsolatedSurvivalTrainer:
 
                 now = time.monotonic()
                 if (now - last_ckpt_mono) >= ckpt_interval_sec or (self.clock.tick - last_ckpt_tick) >= self.config.checkpoint_interval_ticks:
-                    self.save_checkpoint(checkpoint_dir)
+                    self.save_checkpoint(checkpoint_dir, completion_status="in_progress")
                     last_ckpt_mono = now
                     last_ckpt_tick = self.clock.tick
         except Exception as exc:
             self._stop_reason = f"error:{exc}"
-            self.save_checkpoint(checkpoint_dir)
+            self.save_checkpoint(checkpoint_dir, completion_status="failed_incomplete")
             raise
 
-        final_manifest = self.save_checkpoint(checkpoint_dir)
+        final_manifest = self.save_checkpoint(checkpoint_dir, completion_status="completed_success")
         return {
             "training_id": self.training_id,
             "mode": "isolated_survival_training",

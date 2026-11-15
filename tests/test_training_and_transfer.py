@@ -326,6 +326,238 @@ class TestIsolatedTrainingAndTransfer(unittest.TestCase):
                 }),
             )
 
+    def test_26_to_34_ci_artifact_transfer_auto_discovery_and_failure_guards(self) -> None:
+        from scripts.ci_artifact_transfer import (
+            ArtifactResolutionError,
+            ArtifactTransferError,
+            package_training_artifact,
+            resolve_source_artifact,
+            verify_downloaded_artifact,
+        )
+        from sim.cli import main as cli_main
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            train_ckpt = tmp_dir / "train_ckpt"
+            pkg_dir = tmp_dir / "training_package"
+            verified_bundle = tmp_dir / "staged" / "trained_population.bundle"
+            civ_ckpt = tmp_dir / "civ_ckpt"
+
+            # 1. Run brief isolated training & preserve discovered_techs + lexicon + memory
+            trainer = IsolatedSurvivalTrainer.create_new(TrainingConfig(template_seed=55, agent_count=100))
+            trainer.agents.discovered_techs = {"basic_foraging": 4, "water_tracking": 7}
+            trainer.agents.all_agents[1].memory.record_episode(
+                tick=3, event_kind="shelter_found", x=100.0, y=150.0, other_agent_id=None, valence=0.7, detail="warm cave"
+            )
+            trainer.agents.all_agents[1].lexicon["food_word"] = {"symbol": 5, "meaning": "berry", "confidence": 0.9}
+            trainer.run(checkpoint_dir=train_ckpt, max_ticks=6)
+
+            fp_1 = trainer.agents.all_agents[1].brain.weight_fingerprint()
+
+            # 2. Package completed training into ONE unified artifact
+            meta = package_training_artifact(
+                checkpoint_dir=train_ckpt,
+                output_dir=pkg_dir,
+                run_id="9002",
+                run_number="12",
+                workflow_mode="start_training",
+                require_torch=False,
+            )
+            self.assertEqual(meta["github_run_id"], "9002")
+            self.assertEqual(meta["artifact_kind"], "isolated_training_package")
+            self.assertEqual(meta["completion_status"], "completed_success")
+            self.assertTrue((pkg_dir / "transfer_metadata.json").exists())
+            self.assertTrue((pkg_dir / "trained_population.bundle").exists())
+            self.assertTrue((pkg_dir / "checkpoint" / "manifest.json").exists())
+
+            # 3. Auto-discovery WITHOUT source_run_id skips current, failed, expired, and verify_only runs
+            mock_api_data = {
+                "/actions/workflows/simulation.yml/runs?status=completed&per_page=50": {
+                    "workflow_runs": [
+                        {"id": 9006, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T06:00:00Z"},  # current_run_id
+                        {"id": 9005, "status": "completed", "conclusion": "failure", "created_at": "2026-11-15T05:00:00Z"},  # failed
+                        {"id": 9004, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T04:00:00Z"},  # verify_only (only logs)
+                        {"id": 9003, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T03:00:00Z"},  # expired artifact
+                        {"id": 9002, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T02:00:00Z"},  # VALID training!
+                        {"id": 9001, "status": "completed", "conclusion": "success", "created_at": "2026-11-15T01:00:00Z"},  # older civ
+                    ]
+                },
+                "/actions/runs/9004/artifacts?per_page=100": {
+                    "artifacts": [{"id": 4, "name": "sim-logs-9004", "expired": False}]
+                },
+                "/actions/runs/9003/artifacts?per_page=100": {
+                    "artifacts": [{"id": 3, "name": "isolated-training-artifact-9003", "expired": True}]
+                },
+                "/actions/runs/9002/artifacts?per_page=100": {
+                    "artifacts": [
+                        {"id": 2, "name": "isolated-training-artifact-9002", "expired": False, "size_in_bytes": 102400},
+                        {"id": 22, "name": "sim-logs-9002", "expired": False},
+                    ]
+                },
+                "/actions/runs/9001/artifacts?per_page=100": {
+                    "artifacts": [{"id": 1, "name": "sim-checkpoint-9001", "expired": False}]
+                },
+                "/actions/runs/9005": {"id": 9005, "status": "completed", "conclusion": "failure"},
+                "/actions/runs/9003": {"id": 9003, "status": "completed", "conclusion": "success"},
+                "/actions/runs/9003/artifacts?per_page=100": {
+                    "artifacts": [{"id": 3, "name": "isolated-training-artifact-9003", "expired": True}]
+                },
+                "/actions/runs/9004": {"id": 9004, "status": "completed", "conclusion": "success"},
+            }
+
+            def fake_api_get(url: str) -> dict:
+                for suffix, payload in mock_api_data.items():
+                    if url.endswith(suffix):
+                        return payload
+                raise AssertionError(f"Unexpected mocked URL: {url}")
+
+            resolved = resolve_source_artifact(
+                mode="promote_to_civilization",
+                repo="owner/civ-repo",
+                workflow_file="simulation.yml",
+                source_run_id="",
+                current_run_id="9006",
+                api_get=fake_api_get,
+            )
+            self.assertTrue(resolved["resolved_automatically"])
+            self.assertEqual(resolved["run_id"], "9002")
+            self.assertEqual(resolved["artifact_name"], "isolated-training-artifact-9002")
+            self.assertEqual(resolved["artifact_kind"], "isolated_training_package")
+
+            # Also resolves latest civilization checkpoint automatically for run_civilization
+            resolved_civ = resolve_source_artifact(
+                mode="run_civilization",
+                repo="owner/civ-repo",
+                workflow_file="simulation.yml",
+                source_run_id="",
+                current_run_id="9006",
+                api_get=fake_api_get,
+            )
+            self.assertEqual(resolved_civ["run_id"], "9001")
+            self.assertEqual(resolved_civ["artifact_name"], "sim-checkpoint-9001")
+
+            # Explicit failure checks on resolve_source_artifact
+            with self.assertRaises(ArtifactResolutionError):
+                resolve_source_artifact(mode="promote_to_civilization", repo="owner/civ-repo", source_run_id="9005", api_get=fake_api_get)
+            with self.assertRaises(ArtifactResolutionError):
+                resolve_source_artifact(mode="promote_to_civilization", repo="owner/civ-repo", source_run_id="9003", api_get=fake_api_get)
+            with self.assertRaises(ArtifactResolutionError):
+                resolve_source_artifact(mode="promote_to_civilization", repo="owner/civ-repo", source_run_id="9004", api_get=fake_api_get)
+            with self.assertRaises(ArtifactResolutionError):
+                resolve_source_artifact(
+                    mode="promote_to_civilization",
+                    repo="owner/civ-repo",
+                    source_run_id="",
+                    api_get=lambda _u: {"workflow_runs": []},
+                )
+
+            # 4. Verify downloaded package + promote via CLI with --run-simulation
+            ver_rep = verify_downloaded_artifact(
+                download_dir=pkg_dir,
+                expected_run_id="9002",
+                artifact_kind="isolated_training_package",
+                mode="promote_to_civilization",
+                require_torch=False,
+                verified_bundle_out=verified_bundle,
+            )
+            self.assertTrue(ver_rep["verified"])
+            self.assertTrue(verified_bundle.exists())
+
+            rc = cli_main([
+                "promote-to-civilization",
+                "--bundle-path", str(verified_bundle),
+                "--checkpoint-dir", str(civ_ckpt),
+                "--seed", "88",
+                "--expected-run-id", "9002",
+                "--run-simulation",
+                "--max-ticks", "4",
+            ])
+            self.assertEqual(rc, 0)
+            civ_manifest = json.loads((civ_ckpt / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(civ_manifest["tick"], 4)
+            self.assertEqual(cli_main(["inspect-world", "--checkpoint-dir", str(civ_ckpt)]), 0)
+
+            # Confirm weights, memory, lexicon, discovered_techs survived Full World import & run
+            from sim.persistence import PersistenceEngine
+            _, _, _, _, civ_agents, _, _, _, _, _ = PersistenceEngine.load_checkpoint(civ_ckpt, require_torch=False)
+            self.assertEqual(civ_agents.discovered_techs, {"basic_foraging": 4, "water_tracking": 7})
+            self.assertTrue(any(e.detail == "warm cave" for e in civ_agents.all_agents[1].memory.episodic))
+            self.assertEqual(civ_agents.all_agents[1].lexicon.get("food_word", {}).get("meaning"), "berry")
+            self.assertEqual(civ_agents.all_agents[1].brain.weight_fingerprint(), fp_1)
+
+            # 5. Failure guards + preserve existing Full World data on failed promotion
+            existing_manifest_bytes = (civ_ckpt / "manifest.json").read_bytes()
+
+            # 5a. Empty downloaded dir
+            empty_dir = tmp_dir / "empty_dl"
+            empty_dir.mkdir()
+            with self.assertRaises(ArtifactTransferError):
+                verify_downloaded_artifact(
+                    download_dir=empty_dir,
+                    expected_run_id="9002",
+                    artifact_kind="isolated_training_package",
+                    mode="promote_to_civilization",
+                )
+
+            # 5b. Run ID mismatch
+            with self.assertRaises(ArtifactTransferError):
+                verify_downloaded_artifact(
+                    download_dir=pkg_dir,
+                    expected_run_id="9999",
+                    artifact_kind="isolated_training_package",
+                    mode="promote_to_civilization",
+                )
+
+            # 5c. Incompatible version in transfer_metadata.json
+            bad_ver_pkg = tmp_dir / "bad_ver_pkg"
+            import shutil as _shutil
+            _shutil.copytree(pkg_dir, bad_ver_pkg)
+            bad_meta = json.loads((bad_ver_pkg / "transfer_metadata.json").read_text(encoding="utf-8"))
+            bad_meta["metadata_version"] = "99.0.0"
+            (bad_ver_pkg / "transfer_metadata.json").write_text(json.dumps(bad_meta), encoding="utf-8")
+            with self.assertRaises(ArtifactTransferError):
+                verify_downloaded_artifact(
+                    download_dir=bad_ver_pkg,
+                    expected_run_id="9002",
+                    artifact_kind="isolated_training_package",
+                    mode="promote_to_civilization",
+                )
+
+            # 5d. Corrupted bundle inside package fails verify & failed promotion does NOT overwrite civ_ckpt!
+            tampered_pkg = tmp_dir / "tampered_pkg"
+            _shutil.copytree(pkg_dir, tampered_pkg)
+            (tampered_pkg / "trained_population.bundle").write_bytes(b"corrupted-archive")
+            with self.assertRaises(ArtifactTransferError):
+                verify_downloaded_artifact(
+                    download_dir=tampered_pkg,
+                    expected_run_id="9002",
+                    artifact_kind="isolated_training_package",
+                    mode="promote_to_civilization",
+                )
+
+            with self.assertRaises(BundleIntegrityError):
+                promote_bundle_to_civilization(
+                    bundle_path=tampered_pkg / "trained_population.bundle",
+                    civilization_checkpoint_dir=civ_ckpt,
+                    expected_run_id="9002",
+                )
+            self.assertEqual((civ_ckpt / "manifest.json").read_bytes(), existing_manifest_bytes)
+
+            # 5e. Incomplete/failed training checkpoint cannot be packaged
+            failed_ckpt = tmp_dir / "failed_train_ckpt"
+            _shutil.copytree(train_ckpt, failed_ckpt)
+            fman = json.loads((failed_ckpt / "manifest.json").read_text(encoding="utf-8"))
+            fman["completion_status"] = "failed_incomplete"
+            (failed_ckpt / "manifest.json").write_text(json.dumps(fman), encoding="utf-8")
+            with self.assertRaises(ArtifactTransferError):
+                package_training_artifact(
+                    checkpoint_dir=failed_ckpt,
+                    output_dir=tmp_dir / "should_not_exist",
+                    run_id="9010",
+                )
+            with self.assertRaises(BundleIntegrityError):
+                export_population_bundle(failed_ckpt, tmp_dir / "bad.bundle")
+
 
 if __name__ == "__main__":
     unittest.main()

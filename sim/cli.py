@@ -55,16 +55,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_exp = sub.add_parser("export-population", help="Export 100 trained agents & brains into one compressed bundle")
     p_exp.add_argument("--checkpoint-dir", type=Path, required=True)
     p_exp.add_argument("--output-bundle", type=Path, required=True)
+    p_exp.add_argument("--source-run-id", type=str, default=None, help="Optional GitHub Actions Run ID provenance")
     p_exp.add_argument("--require-torch", action="store_true")
 
     p_ver = sub.add_parser("verify-bundle", help="Strictly verify checksums & schema of a population bundle")
     p_ver.add_argument("--bundle-path", type=Path, required=True)
+    p_ver.add_argument("--expected-run-id", type=str, default=None, help="Optional expected GitHub Actions source_run_id")
     p_ver.add_argument("--require-torch", action="store_true")
 
     p_prom = sub.add_parser("promote-to-civilization", help="Promote verified trained population bundle into full 5km^2 civilization")
     p_prom.add_argument("--bundle-path", type=Path, required=True)
     p_prom.add_argument("--checkpoint-dir", type=Path, required=True)
     p_prom.add_argument("--seed", type=int, default=42)
+    p_prom.add_argument("--expected-run-id", type=str, default=None, help="Optional expected GitHub Actions source_run_id")
+    p_prom.add_argument("--run-simulation", action="store_true", help="Start and run the Civilization World simulation immediately after promotion")
     p_prom.add_argument("--runtime-budget-minutes", type=float, default=300.0)
     p_prom.add_argument("--shutdown-reserve-minutes", type=float, default=12.0)
     p_prom.add_argument("--checkpoint-interval-minutes", type=float, default=25.0)
@@ -221,6 +225,7 @@ def main(argv: list[str] | None = None) -> int:
                 training_checkpoint_dir=args.checkpoint_dir,
                 output_bundle_path=args.output_bundle,
                 require_torch=args.require_torch,
+                source_run_id=args.source_run_id,
             )
             print(json.dumps(manifest, indent=2, ensure_ascii=False))
             return 0
@@ -230,7 +235,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "verify-bundle":
         try:
-            report = verify_population_bundle(args.bundle_path, require_torch=args.require_torch)
+            report = verify_population_bundle(
+                args.bundle_path,
+                require_torch=args.require_torch,
+                expected_run_id=args.expected_run_id,
+            )
             print(json.dumps(report, indent=2, ensure_ascii=False))
             return 0
         except BundleIntegrityError as exc:
@@ -248,11 +257,12 @@ def main(argv: list[str] | None = None) -> int:
                 shutdown_reserve_minutes=args.shutdown_reserve_minutes,
                 checkpoint_interval_minutes=args.checkpoint_interval_minutes,
                 require_torch=args.require_torch,
+                expected_run_id=args.expected_run_id,
             )
         except BundleIntegrityError as exc:
             logging.error("Promotion aborted (never creating untrained fallback world): %s", exc)
             return 2
-        if args.max_ticks is not None and args.max_ticks > 0:
+        if args.run_simulation or (args.max_ticks is not None and args.max_ticks > 0):
             result = engine.run(checkpoint_dir=args.checkpoint_dir, max_ticks=args.max_ticks)
         else:
             manifest = engine.save_checkpoint(args.checkpoint_dir)
@@ -275,6 +285,9 @@ def main(argv: list[str] | None = None) -> int:
             world_id, cfg, clock, _w, agents, comm, society, _h, _rng, manifest = PersistenceEngine.load_checkpoint(
                 args.checkpoint_dir, require_torch=False
             )
+            manifest_clean = {
+                k: v for k, v in manifest.items() if not k.startswith("restored_")
+            }
             summary = {
                 "world_id": world_id,
                 "simulation_phase": manifest.get("simulation_phase", "civilization"),
@@ -283,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
                 "timeline_id": manifest.get("timeline_id"),
                 "parent_timeline_id": manifest.get("parent_timeline_id"),
                 "timeline_kind": manifest.get("timeline_kind", "original"),
-                "manifest": manifest,
+                "manifest": manifest_clean,
                 "clock": clock.to_dict(),
                 "living_population": len(agents.living_agents()),
                 "total_agents_ever": len(agents.all_agents),

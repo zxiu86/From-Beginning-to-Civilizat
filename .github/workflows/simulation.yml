@@ -6,19 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "Operation mode: start_training | resume_training | export_trained_population | promote_to_civilization | run_civilization | verify_only"
+        description: "Operation mode: start_training | resume_training | promote_to_civilization | run_civilization | export_trained_population | verify_only"
         required: true
         default: "start_training"
         type: choice
         options:
           - start_training
           - resume_training
-          - export_trained_population
           - promote_to_civilization
           - run_civilization
+          - export_trained_population
           - verify_only
       source_run_id:
-        description: "Required for resume_training, export_trained_population, promote_to_civilization, or run_civilization: GitHub Actions Run ID holding the source artifact"
+        description: "Optional Run ID override (leave BLANK to automatically import the latest successful completed run)"
         required: false
         default: ""
         type: string
@@ -78,18 +78,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p runs/training_checkpoint runs/bundle runs/civ_checkpoint runs/logs
-          MODE="${{ inputs.mode }}"
-          SRC_ID="${{ inputs.source_run_id }}"
-          if [ "$MODE" = "resume_training" ] || [ "$MODE" = "export_trained_population" ] || [ "$MODE" = "promote_to_civilization" ] || [ "$MODE" = "run_civilization" ]; then
-            if [ -z "$SRC_ID" ]; then
-              echo "ERROR: mode=$MODE requires a valid 'source_run_id'. Refusing silent fallback."
-              exit 2
-            fi
-            if ! [[ "$SRC_ID" =~ ^[0-9]+$ ]]; then
-              echo "ERROR: source_run_id must be a numeric GitHub Actions Run ID."
-              exit 2
-            fi
+          mkdir -p runs/training_checkpoint runs/training_package runs/imported_source runs/bundle runs/civ_checkpoint runs/logs
+          SRC_ID="$(echo '${{ inputs.source_run_id }}' | xargs)"
+          if [ -n "$SRC_ID" ] && ! [[ "$SRC_ID" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: Optional source_run_id must be a numeric GitHub Actions Run ID (or left blank for automatic selection)."
+            exit 2
           fi
           python -c "
           b = float('${{ inputs.runtime_budget_minutes }}')
@@ -101,33 +94,53 @@ jobs:
               assert int(mt) >= 1, 'max_ticks must be >= 1'
           "
 
-      # --- Download source artifacts matching selected mode ---
-      - name: Download training checkpoint (resume_training / export_trained_population)
-        if: inputs.mode == 'resume_training' || inputs.mode == 'export_trained_population'
-        uses: actions/download-artifact@v4
-        with:
-          name: training-checkpoint-${{ inputs.source_run_id }}
-          run-id: ${{ inputs.source_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: runs/training_checkpoint
+      # --- Automatic (or Optional Override) Source Run & Artifact Discovery ---
+      - name: Resolve source run and artifact automatically
+        id: resolve_source
+        if: inputs.mode == 'resume_training' || inputs.mode == 'export_trained_population' || inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python scripts/ci_artifact_transfer.py resolve-source \
+            --mode "${{ inputs.mode }}" \
+            --source-run-id "${{ inputs.source_run_id }}" \
+            --repo "${{ github.repository }}" \
+            --workflow-file "simulation.yml" \
+            --current-run-id "${{ github.run_id }}" \
+            --token-env GITHUB_TOKEN \
+            --github-output "$GITHUB_OUTPUT"
 
-      - name: Download population bundle (promote_to_civilization)
-        if: inputs.mode == 'promote_to_civilization'
+      - name: Download resolved source artifact
+        if: inputs.mode == 'resume_training' || inputs.mode == 'export_trained_population' || inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization'
         uses: actions/download-artifact@v4
         with:
-          name: trained-population-bundle-${{ inputs.source_run_id }}
-          run-id: ${{ inputs.source_run_id }}
+          name: ${{ steps.resolve_source.outputs.artifact_name }}
+          run-id: ${{ steps.resolve_source.outputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: runs/bundle
+          path: runs/imported_source
 
-      - name: Download civilization checkpoint (run_civilization)
-        if: inputs.mode == 'run_civilization'
-        uses: actions/download-artifact@v4
-        with:
-          name: sim-checkpoint-${{ inputs.source_run_id }}
-          run-id: ${{ inputs.source_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: runs/civ_checkpoint
+      - name: Verify downloaded artifact integrity and completeness
+        if: inputs.mode == 'resume_training' || inputs.mode == 'export_trained_population' || inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXTRA_OUT=""
+          if [ "${{ inputs.mode }}" = "promote_to_civilization" ]; then
+            EXTRA_OUT="--verified-bundle-out runs/bundle/trained_population.bundle"
+          elif [ "${{ inputs.mode }}" = "resume_training" ] || [ "${{ inputs.mode }}" = "export_trained_population" ]; then
+            EXTRA_OUT="--verified-checkpoint-out runs/training_checkpoint"
+          elif [ "${{ inputs.mode }}" = "run_civilization" ]; then
+            EXTRA_OUT="--verified-checkpoint-out runs/civ_checkpoint"
+          fi
+          python scripts/ci_artifact_transfer.py verify-downloaded \
+            --download-dir runs/imported_source \
+            --expected-run-id "${{ steps.resolve_source.outputs.run_id }}" \
+            --artifact-kind "${{ steps.resolve_source.outputs.artifact_kind }}" \
+            --mode "${{ inputs.mode }}" \
+            --require-torch \
+            $EXTRA_OUT
 
       # --- Execute requested mode (strict PyTorch CPU enforced) ---
       - name: Run full verification suite and CPU benchmark (verify_only)
@@ -177,6 +190,19 @@ jobs:
             --require-torch \
             --log-file runs/logs/training.log $EXTRA_ARGS
 
+      - name: Package completed isolated training into one verified artifact
+        if: (inputs.mode == 'start_training' || inputs.mode == 'resume_training') && success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/ci_artifact_transfer.py package-training \
+            --checkpoint-dir runs/training_checkpoint \
+            --output-dir runs/training_package \
+            --run-id "${{ github.run_id }}" \
+            --run-number "${{ github.run_number }}" \
+            --workflow-mode "${{ inputs.mode }}" \
+            --require-torch
+
       - name: Export trained 100-agent population to single compressed bundle
         if: inputs.mode == 'export_trained_population'
         shell: bash
@@ -185,18 +211,26 @@ jobs:
           python -m sim.cli export-population \
             --checkpoint-dir runs/training_checkpoint \
             --output-bundle runs/bundle/trained_population.bundle \
+            --source-run-id "${{ steps.resolve_source.outputs.run_id }}" \
             --require-torch
           python -m sim.cli verify-bundle \
             --bundle-path runs/bundle/trained_population.bundle \
+            --expected-run-id "${{ steps.resolve_source.outputs.run_id }}" \
             --require-torch
           cp runs/training_checkpoint/observatory_export.json runs/logs/observatory_export.json
 
-      - name: Promote trained population bundle into full 5 km^2 Civilization World
+      - name: Promote trained population bundle and start Full Civilization World
         if: inputs.mode == 'promote_to_civilization'
         shell: bash
         run: |
+          set -euo pipefail
+          EXP_ARGS=""
+          if [ "${{ steps.resolve_source.outputs.artifact_kind }}" = "isolated_training_package" ]; then
+            EXP_ARGS="--expected-run-id ${{ steps.resolve_source.outputs.run_id }}"
+          fi
           python -m sim.cli verify-bundle \
             --bundle-path runs/bundle/trained_population.bundle \
+            $EXP_ARGS \
             --require-torch
           SEED_VAL="${{ inputs.world_seed }}"
           if [ -z "$SEED_VAL" ]; then
@@ -210,6 +244,8 @@ jobs:
             --bundle-path runs/bundle/trained_population.bundle \
             --checkpoint-dir runs/civ_checkpoint \
             --seed "$SEED_VAL" \
+            $EXP_ARGS \
+            --run-simulation \
             --runtime-budget-minutes "${{ inputs.runtime_budget_minutes }}" \
             --shutdown-reserve-minutes 12 \
             --checkpoint-interval-minutes "${{ inputs.checkpoint_interval_minutes }}" \
@@ -244,36 +280,43 @@ jobs:
             echo "### Run Summary"
             echo "- **Run ID**: \`${{ github.run_id }}\`"
             echo "- **Mode**: \`${{ inputs.mode }}\`"
-            echo "- **Source Run ID**: \`${{ inputs.source_run_id || 'none' }}\`"
+            echo "- **Resolved Source Run ID**: \`${{ steps.resolve_source.outputs.run_id || inputs.source_run_id || 'none' }}\` (auto=\`${{ steps.resolve_source.outputs.resolved_automatically || 'n/a' }}\`)"
+            if [ -n "${{ steps.resolve_source.outputs.artifact_name || '' }}" ]; then
+              echo "- **Imported Artifact**: \`${{ steps.resolve_source.outputs.artifact_name }}\` (\`${{ steps.resolve_source.outputs.artifact_kind }}\`)"
+            fi
+            if [ -f runs/training_package/transfer_metadata.json ]; then
+              cp runs/training_package/transfer_metadata.json runs/logs/transfer_metadata.json
+              echo "- **Unified Training Artifact**: \`isolated-training-artifact-${{ github.run_id }}\`"
+            fi
             if [ -f runs/training_checkpoint/manifest.json ]; then
-              python -m sim.cli inspect-training --checkpoint-dir runs/training_checkpoint > runs/logs/final_training_inspection.json
-              cp runs/training_checkpoint/observatory_export.json runs/logs/observatory_export.json
+              python -m sim.cli inspect-training --checkpoint-dir runs/training_checkpoint > runs/logs/final_training_inspection.json || true
+              [ -f runs/training_checkpoint/observatory_export.json ] && cp runs/training_checkpoint/observatory_export.json runs/logs/observatory_export.json || true
               cp runs/training_checkpoint/manifest.json runs/logs/manifest.json
-              echo "- **Training Artifact**: \`training-checkpoint-${{ github.run_id }}\`"
             fi
             if [ -f runs/bundle/trained_population.bundle ]; then
-              echo "- **Bundle Artifact**: \`trained-population-bundle-${{ github.run_id }}\` (single compressed file)"
+              echo "- **Bundle Path**: \`trained_population.bundle\`"
             fi
             if [ -f runs/civ_checkpoint/manifest.json ]; then
-              python -m sim.cli inspect-world --checkpoint-dir runs/civ_checkpoint > runs/logs/final_world_inspection.json
-              cp runs/civ_checkpoint/observatory_export.json runs/logs/observatory_export.json
+              python -m sim.cli inspect-world --checkpoint-dir runs/civ_checkpoint > runs/logs/final_world_inspection.json || true
+              [ -f runs/civ_checkpoint/observatory_export.json ] && cp runs/civ_checkpoint/observatory_export.json runs/logs/observatory_export.json || true
               cp runs/civ_checkpoint/manifest.json runs/logs/manifest.json
               echo "- **Civilization Artifact**: \`sim-checkpoint-${{ github.run_id }}\`"
             fi
             echo "- **Logs & Observatory Snapshot Artifact**: \`sim-logs-${{ github.run_id }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload training checkpoint artifact
-        if: (inputs.mode == 'start_training' || inputs.mode == 'resume_training') && always()
+      # ONLY upload training/bundle/civilization artifacts when the workflow succeeded cleanly.
+      - name: Upload single organized isolated training artifact
+        if: (inputs.mode == 'start_training' || inputs.mode == 'resume_training') && success()
         uses: actions/upload-artifact@v4
         with:
-          name: training-checkpoint-${{ github.run_id }}
-          path: runs/training_checkpoint
+          name: isolated-training-artifact-${{ github.run_id }}
+          path: runs/training_package
           retention-days: 90
           if-no-files-found: error
 
       - name: Upload single-file trained population bundle artifact
-        if: inputs.mode == 'export_trained_population' && always()
+        if: inputs.mode == 'export_trained_population' && success()
         uses: actions/upload-artifact@v4
         with:
           name: trained-population-bundle-${{ github.run_id }}
@@ -282,7 +325,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload civilization checkpoint artifact
-        if: (inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization') && always()
+        if: (inputs.mode == 'promote_to_civilization' || inputs.mode == 'run_civilization') && success()
         uses: actions/upload-artifact@v4
         with:
           name: sim-checkpoint-${{ github.run_id }}

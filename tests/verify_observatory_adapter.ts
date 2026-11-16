@@ -297,7 +297,73 @@ assert.equal(trainNorm.training_analytics.agents[0].food_consumed, 2);
 assert.equal(trainNorm.training_analytics.agents[0].learning_level_score, 0.48);
 assert.equal(trainNorm.training_analytics.agents[0].attempt_history[0].cause, 'starvation');
 
-console.log('ALL OBSERVATORY ADAPTER CHECKS PASSED (10 scenarios):', {
+// 11. Verify recovery_founder_count defaults to 60 and legacy fallback builds rich learning_telemetry fields
+assert.equal(normalizedV1.recovery_state?.recovery_founder_count, 60);
+assert.ok(snap.learning_telemetry !== undefined);
+assert.ok(snap.learning_telemetry.population_skills_summary.length >= 0);
+assert.ok(typeof snap.learning_telemetry.trust_network_summary.trusted_ties === 'number');
+assert.ok(snap.learning_telemetry.architecture !== null);
+assert.equal(snap.learning_telemetry.architecture?.obs_dim, 36);
+assert.equal(snap.learning_telemetry.architecture?.hidden_dim, 24);
+
+// 12. Verify explicit neural_network, action_outcomes, trust_network_summary & spatial_summary pass through cleanly
+const richTelemetrySnap = structuredClone(rawFixture);
+richTelemetrySnap.recovery_state = {
+  auto_recover_on_extinction: true,
+  recovery_founder_count: 60,
+  recovery_cycle_count: 1,
+  current_cycle_number: 1,
+  current_cycle_start_tick: 100,
+  population_recovery_history: [],
+};
+richTelemetrySnap.living_agents_full[0].action_outcomes = {
+  forage_food: {count: 12, ema_reward: 0.42},
+  attack: {count: 3, ema_reward: -0.65},
+};
+richTelemetrySnap.living_agents_full[0].social_ties = [
+  {agent_id: 2, familiarity: 0.85, trust: 0.64},
+  {agent_id: 3, familiarity: 0.44, trust: -0.52},
+];
+richTelemetrySnap.living_agents_full[0].neural_network = {
+  architecture: 'GRUCell_ActorCriticSignalValue',
+  obs_dim: 36,
+  hidden_dim: 24,
+  num_actions: 18,
+  num_signals: 24,
+  learning_rate: 0.0025,
+  backend: 'pytorch_cpu',
+  optimizer: 'Adam',
+  parameter_count: 5563,
+  total_updates: 19,
+  experience_buffer_len: 32,
+  experience_buffer_capacity: 64,
+  last_loss: 0.145,
+  value_loss: 0.088,
+  mean_td_error: -0.021,
+  policy_entropy: 2.31,
+  mean_recent_reward: 0.18,
+  weight_l2_norm: 11.4,
+  hidden_state_l2_norm: 1.72,
+  hidden_state_mean_abs: 0.29,
+  weight_fingerprint: 'deadbeef00112233',
+  recent_contexts: {water_here: 5, food_here: 7},
+  death_penalty_count: 2,
+};
+const richTelNorm = validateAndNormalizeSnapshot(richTelemetrySnap);
+assert.equal(richTelNorm.recovery_state?.recovery_founder_count, 60);
+assert.equal(richTelNorm.living_agents_full[0].action_outcomes.forage_food.count, 12);
+assert.equal(richTelNorm.living_agents_full[0].action_outcomes.attack.ema_reward, -0.65);
+assert.equal(richTelNorm.living_agents_full[0].neural_network?.parameter_count, 5563);
+assert.equal(richTelNorm.living_agents_full[0].neural_network?.death_penalty_count, 2);
+assert.ok(richTelNorm.learning_telemetry !== undefined);
+assert.ok(richTelNorm.learning_telemetry.trust_network_summary.trusted_ties >= 1);
+assert.ok(richTelNorm.learning_telemetry.trust_network_summary.distrusted_ties >= 1);
+assert.ok(
+  richTelNorm.learning_telemetry.learned_action_outcomes.some((a) => a.action === 'forage_food'),
+);
+assert.ok(richTelNorm.learning_telemetry.top_neural_agents.some((a) => a.total_updates === 19));
+
+console.log('ALL OBSERVATORY ADAPTER CHECKS PASSED (12 scenarios):', {
   world_id: snap.world_id,
   tick: snap.clock.tick,
   living: snap.living_agents_full.length,

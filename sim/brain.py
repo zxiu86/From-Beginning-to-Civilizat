@@ -666,6 +666,73 @@ class AgentBrain:
             h.update(payload)
         return h.hexdigest()[:16]
 
+    def parameter_count(self) -> int:
+        if TORCH_AVAILABLE and self._net is not None and torch is not None:
+            return int(sum(p.numel() for p in self._net.parameters()))
+        total = 0
+        for val in self._w.values():
+            if val and isinstance(val[0], list):
+                total += sum(len(row) for row in val)
+            else:
+                total += len(val)
+        return int(total)
+
+    def _weight_l2_norm(self) -> float:
+        sq = 0.0
+        if TORCH_AVAILABLE and self._net is not None and torch is not None:
+            with torch.no_grad():
+                for p in self._net.parameters():
+                    sq += float((p.detach() ** 2).sum().item())
+        else:
+            for val in self._w.values():
+                if val and isinstance(val[0], list):
+                    for row in val:
+                        for x in row:
+                            sq += float(x) * float(x)
+                else:
+                    for x in val:
+                        sq += float(x) * float(x)
+        return round(math.sqrt(max(0.0, sq)), 4)
+
+    def telemetry_summary(self, max_buffer: int = 64, include_death_penalties: bool = False) -> dict:
+        h_sq = sum(float(v) * float(v) for v in self.hidden_state)
+        h_l2 = round(math.sqrt(max(0.0, h_sq)), 4)
+        h_mean_abs = round(sum(abs(float(v)) for v in self.hidden_state) / max(1, len(self.hidden_state)), 4)
+        ctx_counts: Dict[str, int] = {}
+        for item in self.experience:
+            ctx = str(item.context_tag or "general")
+            ctx_counts[ctx] = ctx_counts.get(ctx, 0) + 1
+        top_contexts = dict(sorted(ctx_counts.items(), key=lambda kv: (-kv[1], kv[0]))[:8])
+        optimizer_name = "Adam" if (TORCH_AVAILABLE and self._net is not None and torch is not None) else "SGD_BPTT"
+        out: Dict[str, Any] = {
+            "architecture": "GRUCell_ActorCriticSignalValue",
+            "obs_dim": int(self.obs_dim),
+            "hidden_dim": int(self.hidden_dim),
+            "num_actions": int(self.num_actions),
+            "num_signals": int(self.num_signals),
+            "learning_rate": float(self.learning_rate),
+            "backend": str(self.backend),
+            "optimizer": optimizer_name,
+            "parameter_count": self.parameter_count(),
+            "total_updates": int(self.total_updates),
+            "experience_buffer_len": len(self.experience),
+            "experience_buffer_capacity": int(max_buffer),
+            "last_loss": round(float(self.last_loss), 5),
+            "value_loss": round(float(self.value_loss), 5),
+            "mean_td_error": round(float(self.mean_td_error), 5),
+            "policy_entropy": round(float(self.policy_entropy), 5),
+            "mean_recent_reward": round(float(self.mean_recent_reward), 5),
+            "weight_l2_norm": self._weight_l2_norm(),
+            "hidden_state_l2_norm": h_l2,
+            "hidden_state_mean_abs": h_mean_abs,
+            "weight_fingerprint": self.weight_fingerprint(),
+            "recent_contexts": top_contexts,
+            "death_penalty_count": len(self.death_penalty_history),
+        }
+        if include_death_penalties:
+            out["death_penalty_history"] = list(self.death_penalty_history[-10:])
+        return out
+
     def export_state(self) -> dict:
         state = {
             "agent_id": self.agent_id,

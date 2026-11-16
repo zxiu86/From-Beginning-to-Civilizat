@@ -2,14 +2,20 @@
 
 import React, {useState} from 'react';
 import {
+  AlertTriangle,
   Baby,
+  Cpu,
+  Eye,
   GraduationCap,
   HeartPulse,
   MessageSquare,
   Navigation,
   RotateCcw,
   Search,
+  ShieldAlert,
+  ShieldCheck,
   Skull,
+  Sparkles,
   Users,
 } from 'lucide-react';
 import {formatCoords, safeFixed} from '@/lib/observatory/formatters';
@@ -377,27 +383,279 @@ export default function AgentInspector({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 rounded border border-white/10 bg-[#18212C] p-3">
               <h3 className="font-semibold">{t.traitsSection}</h3>
-              {Object.entries(agent.traits).map(([k, v]) => (
-                <div key={k} className="flex justify-between text-[11px]">
-                  <span className="text-[#9FB0C3]">{t.traits[k] ?? k}</span>
-                  <span className="font-mono tabular-nums">{safeFixed(v, 2)}</span>
-                </div>
-              ))}
+              {Object.entries(agent.traits).map(([k, v]) => {
+                const pct = Math.max(0, Math.min(100, Math.round(v * 100)));
+                return (
+                  <div key={k} className="space-y-0.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-[#9FB0C3]">{t.traits[k] ?? k}</span>
+                      <span className="font-mono tabular-nums">{safeFixed(v, 2)}</span>
+                    </div>
+                    <div className="h-1 w-full overflow-hidden rounded bg-[#121821]">
+                      <div className="h-full bg-[#3B82A6]" style={{width: `${pct}%`}} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="space-y-1.5 rounded border border-white/10 bg-[#18212C] p-3">
+            <div className="space-y-2 rounded border border-white/10 bg-[#18212C] p-3">
               <h3 className="font-semibold">{t.skillsSection}</h3>
               {Object.keys(agent.skills).length === 0 ? (
                 <div className="text-[11px] text-[#9FB0C3]">—</div>
               ) : (
-                Object.entries(agent.skills).map(([k, v]) => (
-                  <div key={k} className="flex justify-between text-[11px]">
-                    <span className="text-[#9FB0C3]">{t.skills[k] ?? k}</span>
-                    <span className="font-mono tabular-nums text-[#F2BE49]">{safeFixed(v, 2)}</span>
-                  </div>
-                ))
+                <div className="space-y-1.5">
+                  {Object.entries(agent.skills)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([k, v]) => {
+                      const pct = Math.max(0, Math.min(100, Math.round(v * 100)));
+                      return (
+                        <div key={k} className="space-y-0.5 text-[11px]">
+                          <div className="flex justify-between">
+                            <span className="text-[#9FB0C3]">{t.skills[k] ?? k}</span>
+                            <span className="font-mono tabular-nums text-[#F2BE49]">{pct}%</span>
+                          </div>
+                          <div className="h-1.5 w-full overflow-hidden rounded bg-[#121821]">
+                            <div className="h-full bg-[#D99B26]" style={{width: `${pct}%`}} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
               )}
             </div>
+          </div>
+
+          {/* What This Agent Learned (Action Outcomes & Recent Contexts) */}
+          <div className="space-y-2.5 rounded border border-white/10 bg-[#18212C] p-3">
+            <h3 className="flex items-center gap-1.5 font-semibold text-[#F2BE49]">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{t.whatLearnedSection}</span>
+            </h3>
+            {(() => {
+              const outcomes = Object.entries(agent.action_outcomes ?? {}).sort(
+                (a, b) => b[1].ema_reward - a[1].ema_reward,
+              );
+              const positive = outcomes.filter(([, s]) => s.ema_reward >= 0);
+              const negative = outcomes.filter(([, s]) => s.ema_reward < 0).reverse();
+              const contexts = agent.neural_network
+                ? Object.entries(agent.neural_network.recent_contexts ?? {}).sort(
+                    (a, b) => b[1] - a[1],
+                  )
+                : [];
+              if (outcomes.length === 0 && contexts.length === 0) {
+                return <div className="text-[11px] text-[#9FB0C3]">{t.noLearnedOutcomesYet}</div>;
+              }
+              return (
+                <div className="space-y-2.5">
+                  {positive.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-medium text-emerald-300">
+                        {t.learnedPositiveHabits}
+                      </div>
+                      <div className="max-h-32 space-y-1 overflow-y-auto">
+                        {positive.slice(0, 8).map(([act, stat]) => (
+                          <div
+                            key={`pos-${act}`}
+                            className="flex items-center justify-between rounded bg-[#121821] px-2 py-1 text-[11px]"
+                          >
+                            <span className="text-[#E6EDF3]">{t.actions[act] ?? act}</span>
+                            <span className="font-mono tabular-nums text-emerald-300">
+                              +{safeFixed(stat.ema_reward, 3)} · {stat.count} {t.trialsLabel}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {negative.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[10px] font-medium text-red-300">
+                        {t.learnedAvoidedActions}
+                      </div>
+                      <div className="max-h-28 space-y-1 overflow-y-auto">
+                        {negative.slice(0, 6).map(([act, stat]) => (
+                          <div
+                            key={`neg-${act}`}
+                            className="flex items-center justify-between rounded bg-[#121821] px-2 py-1 text-[11px]"
+                          >
+                            <span className="text-[#E6EDF3]">{t.actions[act] ?? act}</span>
+                            <span className="font-mono tabular-nums text-red-300">
+                              {safeFixed(stat.ema_reward, 3)} · {stat.count} {t.trialsLabel}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {contexts.length > 0 && (
+                    <div className="space-y-1 border-t border-white/5 pt-2">
+                      <div className="text-[10px] text-[#9FB0C3]">{t.recentCognitiveContexts}</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {contexts.slice(0, 6).map(([ctx, cnt]) => (
+                          <div
+                            key={ctx}
+                            className="flex items-center justify-between rounded bg-[#121821] px-2 py-1 text-[10px]"
+                          >
+                            <span className="truncate text-[#9FB0C3]">
+                              {t.contexts[ctx] ?? ctx}
+                            </span>
+                            <span className="font-mono tabular-nums text-[#57b8d8]">{cnt}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Neural Network Telemetry Card */}
+          <div className="space-y-2.5 rounded border border-[#3B82A6]/40 bg-[#18212C] p-3">
+            <h3 className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+              <Cpu className="h-3.5 w-3.5" />
+              <span>{t.neuralNetworkTitle}</span>
+            </h3>
+            {agent.neural_network ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-[#121821] px-2.5 py-1.5 text-[10px]">
+                  <span className="font-mono text-[#E6EDF3]">
+                    {agent.neural_network.obs_dim} → GRU({agent.neural_network.hidden_dim}) →{' '}
+                    {agent.neural_network.num_actions}/{agent.neural_network.num_signals}/1
+                  </span>
+                  <span className="font-mono text-[#9FB0C3]">
+                    {agent.neural_network.backend} · {agent.neural_network.optimizer}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 font-mono text-[11px] tabular-nums sm:grid-cols-3">
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnParameters}</div>
+                    <div className="font-bold text-[#E6EDF3]">
+                      {agent.neural_network.parameter_count.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnUpdatesCount}</div>
+                    <div className="font-bold text-[#F2BE49]">
+                      {agent.neural_network.total_updates.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnLearningRate}</div>
+                    <div className="font-bold text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.learning_rate, 4)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnPolicyLoss}</div>
+                    <div className="font-bold text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.last_loss, 4)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnValueLoss}</div>
+                    <div className="font-bold text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.value_loss, 4)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnTdError}</div>
+                    <div className="font-bold text-[#57b8d8]">
+                      {safeFixed(agent.neural_network.mean_td_error, 4)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnEntropy}</div>
+                    <div className="font-bold text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.policy_entropy, 3)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnRecentReward}</div>
+                    <div
+                      className={`font-bold ${
+                        agent.neural_network.mean_recent_reward >= 0
+                          ? 'text-emerald-300'
+                          : 'text-red-300'
+                      }`}
+                    >
+                      {agent.neural_network.mean_recent_reward >= 0 ? '+' : ''}
+                      {safeFixed(agent.neural_network.mean_recent_reward, 3)}
+                    </div>
+                  </div>
+                  <div className="rounded bg-[#121821] p-2">
+                    <div className="font-sans text-[10px] text-[#9FB0C3]">{t.nnDeathPenalties}</div>
+                    <div className="font-bold text-red-300">
+                      {agent.neural_network.death_penalty_count}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Experience Buffer Bar */}
+                <div className="space-y-1 rounded bg-[#121821] p-2">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-[#9FB0C3]">{t.nnExpBuffer}</span>
+                    <span className="font-mono tabular-nums text-[#E6EDF3]">
+                      {agent.neural_network.experience_buffer_len} /{' '}
+                      {agent.neural_network.experience_buffer_capacity}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded bg-[#18212C]">
+                    <div
+                      className="h-full bg-[#57b8d8]"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (agent.neural_network.experience_buffer_len /
+                              Math.max(1, agent.neural_network.experience_buffer_capacity)) *
+                              100,
+                          ),
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+                  <div className="rounded bg-[#121821] px-2 py-1.5">
+                    {t.nnWeightNorm}:{' '}
+                    <span className="text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.weight_l2_norm, 3)}
+                    </span>
+                  </div>
+                  <div className="rounded bg-[#121821] px-2 py-1.5">
+                    {t.nnHiddenNorm}:{' '}
+                    <span className="text-[#E6EDF3]">
+                      {safeFixed(agent.neural_network.hidden_state_l2_norm, 3)}
+                    </span>
+                  </div>
+                </div>
+
+                {agent.neural_network.weight_fingerprint && (
+                  <div className="rounded bg-[#121821] px-2 py-1 font-mono text-[10px] text-[#9FB0C3]">
+                    {t.nnWeightFingerprint}:{' '}
+                    <span className="text-[#F2BE49]">
+                      {agent.neural_network.weight_fingerprint}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1 text-[11px] text-[#9FB0C3]">
+                {agent.brain_fingerprint && (
+                  <div className="rounded bg-[#121821] px-2 py-1 font-mono text-[10px]">
+                    {t.nnWeightFingerprint}:{' '}
+                    <span className="text-[#E6EDF3]">{agent.brain_fingerprint}</span>
+                  </div>
+                )}
+                <div>{t.nnLegacyUnavailable}</div>
+              </div>
+            )}
           </div>
 
           {/* Inventory */}
@@ -459,29 +717,246 @@ export default function AgentInspector({
             </div>
           )}
 
-          {/* Social Ties */}
-          <div className="rounded border border-white/10 bg-[#18212C] p-3">
-            <h3 className="mb-1.5 font-semibold">{t.socialTiesSection}</h3>
-            {agent.social_ties.length === 0 ? (
-              <div className="text-[11px] text-[#9FB0C3]">{t.noTiesYet}</div>
-            ) : (
-              <div className="max-h-32 space-y-1 overflow-y-auto">
-                {agent.social_ties.slice(0, 12).map((tie) => (
-                  <button
-                    key={tie.agent_id}
-                    type="button"
-                    onClick={() => onSelectAgent(tie.agent_id)}
-                    className="flex w-full items-center justify-between rounded bg-[#121821] px-2 py-1 text-[11px] hover:border hover:border-[#D99B26]/50"
-                  >
-                    <span className="font-mono text-[#F2BE49]">#{tie.agent_id}</span>
-                    <span className="font-mono tabular-nums text-[#9FB0C3]">
-                      F:{safeFixed(tie.familiarity, 2)} · T:{safeFixed(tie.trust, 2)}
+          {/* Trust & Distrust Network + Remembered Hazards */}
+          <div className="space-y-2.5 rounded border border-white/10 bg-[#18212C] p-3">
+            {(() => {
+              const trusted = [...agent.social_ties]
+                .filter((tie) => tie.trust > 0.15)
+                .sort((a, b) => b.trust - a.trust);
+              const distrusted = [...agent.social_ties]
+                .filter((tie) => tie.trust < -0.15)
+                .sort((a, b) => a.trust - b.trust);
+              const neutral = [...agent.social_ties]
+                .filter((tie) => tie.trust >= -0.15 && tie.trust <= 0.15)
+                .sort((a, b) => b.familiarity - a.familiarity);
+              const hazards = livingAgent
+                ? livingAgent.spatial_memories.filter((sm) => sm.resource_kind === 'hazard')
+                : [];
+
+              return (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-semibold text-[#E6EDF3]">{t.trustDistrustTitle}</h3>
+                    <span className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+                      +{trusted.length} / -{distrusted.length} / ={neutral.length}
                     </span>
-                  </button>
-                ))}
-              </div>
-            )}
+                  </div>
+
+                  {agent.social_ties.length === 0 && hazards.length === 0 ? (
+                    <div className="text-[11px] text-[#9FB0C3]">{t.noTiesYet}</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {/* Trusted Allies */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-emerald-300">
+                          <ShieldCheck className="h-3 w-3" />
+                          <span>
+                            {t.trustedAllies} ({trusted.length})
+                          </span>
+                        </div>
+                        {trusted.length === 0 ? (
+                          <div className="text-[10px] text-[#9FB0C3]">{t.noTrustedYet}</div>
+                        ) : (
+                          <div className="max-h-24 space-y-1 overflow-y-auto">
+                            {trusted.slice(0, 8).map((tie) => (
+                              <button
+                                key={`tr-${tie.agent_id}`}
+                                type="button"
+                                onClick={() => onSelectAgent(tie.agent_id)}
+                                className="flex w-full items-center justify-between rounded border border-emerald-500/20 bg-[#121821] px-2 py-1 text-[11px] hover:border-emerald-400"
+                              >
+                                <span className="font-mono text-emerald-300">
+                                  #{tie.agent_id}
+                                </span>
+                                <span className="font-mono tabular-nums text-[#9FB0C3]">
+                                  {t.trustScore}: +{safeFixed(tie.trust, 2)} ·{' '}
+                                  {t.familiarityScore}: {safeFixed(tie.familiarity, 2)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Distrusted Agents */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1 text-[10px] font-medium text-red-300">
+                          <ShieldAlert className="h-3 w-3" />
+                          <span>
+                            {t.distrustedAgents} ({distrusted.length})
+                          </span>
+                        </div>
+                        {distrusted.length === 0 ? (
+                          <div className="text-[10px] text-[#9FB0C3]">{t.noDistrustedYet}</div>
+                        ) : (
+                          <div className="max-h-24 space-y-1 overflow-y-auto">
+                            {distrusted.slice(0, 8).map((tie) => (
+                              <button
+                                key={`dis-${tie.agent_id}`}
+                                type="button"
+                                onClick={() => onSelectAgent(tie.agent_id)}
+                                className="flex w-full items-center justify-between rounded border border-red-500/25 bg-[#121821] px-2 py-1 text-[11px] hover:border-red-400"
+                              >
+                                <span className="font-mono text-red-300">#{tie.agent_id}</span>
+                                <span className="font-mono tabular-nums text-[#9FB0C3]">
+                                  {t.trustScore}: {safeFixed(tie.trust, 2)} ·{' '}
+                                  {t.familiarityScore}: {safeFixed(tie.familiarity, 2)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Neutral Acquaintances */}
+                      {neutral.length > 0 && (
+                        <div className="space-y-1">
+                          <div className="text-[10px] text-[#9FB0C3]">
+                            {t.neutralAcquaintances} ({neutral.length})
+                          </div>
+                          <div className="flex max-h-20 flex-wrap gap-1 overflow-y-auto">
+                            {neutral.slice(0, 10).map((tie) => (
+                              <button
+                                key={`neu-${tie.agent_id}`}
+                                type="button"
+                                onClick={() => onSelectAgent(tie.agent_id)}
+                                className="rounded border border-white/10 bg-[#121821] px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-[#9FB0C3] hover:border-[#D99B26]/50"
+                              >
+                                #{tie.agent_id} ({safeFixed(tie.trust, 2)})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Remembered Spatial Hazards */}
+                      {hazards.length > 0 && (
+                        <div className="space-y-1 border-t border-white/5 pt-2">
+                          <div className="flex items-center gap-1 text-[10px] font-medium text-[#F2BE49]">
+                            <AlertTriangle className="h-3 w-3" />
+                            <span>
+                              {t.avoidedHazards} ({hazards.length})
+                            </span>
+                          </div>
+                          <div className="max-h-20 space-y-1 overflow-y-auto">
+                            {hazards.slice(0, 5).map((hz, idx) => (
+                              <div
+                                key={`hz-${idx}`}
+                                className="flex justify-between rounded bg-[#121821] px-2 py-1 font-mono text-[10px] tabular-nums text-red-300"
+                              >
+                                <span>{formatCoords(hz.x, hz.y)}</span>
+                                <span>
+                                  {t.severityLabel}: {safeFixed(hz.estimated_amount, 2)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
+
+          {/* Local Sensory Perception */}
+          {livingAgent && (
+            <div className="space-y-2 rounded border border-white/10 bg-[#18212C] p-3">
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+                  <Eye className="h-3.5 w-3.5" />
+                  <span>{t.sensoryPerceptionTitle}</span>
+                </h3>
+                <span className="font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+                  {t.visionRangeLabel}: {safeFixed(livingAgent.local_perception.vision_radius_m, 0)}m ·{' '}
+                  {t.hearingRangeLabel}: {safeFixed(livingAgent.local_perception.hearing_radius_m, 0)}m
+                </span>
+              </div>
+
+              <div className="rounded bg-[#121821] p-2">
+                <div className="mb-1 text-[10px] text-[#9FB0C3]">{t.localResourcesSpot}</div>
+                <div className="grid grid-cols-5 gap-1 font-mono text-[10px] tabular-nums">
+                  <div>
+                    W:{safeFixed(livingAgent.local_perception.local_water, 2)}
+                  </div>
+                  <div>
+                    F:{safeFixed(livingAgent.local_perception.local_food, 2)}
+                  </div>
+                  <div>
+                    Wd:{safeFixed(livingAgent.local_perception.local_wood, 2)}
+                  </div>
+                  <div>
+                    St:{safeFixed(livingAgent.local_perception.local_stone, 2)}
+                  </div>
+                  <div>
+                    Hb:{safeFixed(livingAgent.local_perception.local_herb, 2)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[10px]">
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="text-[#9FB0C3]">{t.nearbyFaunaVisible}</div>
+                  <div className="font-mono font-bold tabular-nums">
+                    {livingAgent.local_perception.visible_fauna_ids.length}
+                  </div>
+                </div>
+                <div className="rounded bg-[#121821] p-2">
+                  <div className="text-[#9FB0C3]">{t.nearbyArtifactsVisible}</div>
+                  <div className="font-mono font-bold tabular-nums">
+                    {livingAgent.local_perception.visible_artifact_ids.length}
+                  </div>
+                </div>
+              </div>
+
+              {livingAgent.local_perception.visible_agent_ids.length > 0 && (
+                <div>
+                  <div className="mb-1 text-[10px] text-[#9FB0C3]">
+                    {t.nearbyAgentsVisible} ({livingAgent.local_perception.visible_agent_ids.length})
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {livingAgent.local_perception.visible_agent_ids.slice(0, 14).map((vid) => (
+                      <button
+                        key={`vis-${vid}`}
+                        type="button"
+                        onClick={() => onSelectAgent(vid)}
+                        className="rounded border border-white/10 bg-[#121821] px-1.5 py-0.5 font-mono text-[10px] text-[#F2BE49] hover:border-[#D99B26]"
+                      >
+                        #{vid}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <div className="mb-1 text-[10px] text-[#9FB0C3]">{t.heardSignalsTitle}</div>
+                {livingAgent.local_perception.heard_emissions.length === 0 ? (
+                  <div className="text-[10px] text-[#9FB0C3]/80">{t.noSignalsHeard}</div>
+                ) : (
+                  <div className="max-h-24 space-y-1 overflow-y-auto">
+                    {livingAgent.local_perception.heard_emissions.slice(0, 8).map((em, idx) => (
+                      <div
+                        key={`em-${idx}`}
+                        className="flex items-center justify-between rounded bg-[#121821] px-2 py-1 font-mono text-[10px] tabular-nums"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => onSelectAgent(em.speaker_id)}
+                          className="text-[#F2BE49] hover:underline"
+                        >
+                          #{em.speaker_id}
+                        </button>
+                        <span className="text-[#57b8d8]">T-{em.token}</span>
+                        <span className="text-[#9FB0C3]">{safeFixed(em.distance_m, 1)}m</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Episodic & Spatial Memories */}
           <div className="rounded border border-white/10 bg-[#18212C] p-3">
@@ -515,12 +990,16 @@ export default function AgentInspector({
                 <span>{t.spatialMemorySection}</span>
               </h3>
               <div className="max-h-32 space-y-1 overflow-y-auto">
-                {livingAgent.spatial_memories.slice(0, 10).map((sm, idx) => (
+                {livingAgent.spatial_memories.slice(0, 12).map((sm, idx) => (
                   <div
                     key={`${sm.resource_kind}-${idx}`}
                     className="flex justify-between rounded bg-[#121821] px-2 py-1 font-mono text-[11px] tabular-nums"
                   >
-                    <span className="text-[#E6EDF3]">{sm.resource_kind}</span>
+                    <span
+                      className={sm.resource_kind === 'hazard' ? 'text-red-300' : 'text-[#E6EDF3]'}
+                    >
+                      {sm.resource_kind}
+                    </span>
                     <span className="text-[#9FB0C3]">
                       {formatCoords(sm.x, sm.y)} · {safeFixed(sm.estimated_amount, 1)}
                     </span>

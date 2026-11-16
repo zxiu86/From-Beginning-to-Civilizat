@@ -208,8 +208,12 @@ class Agent:
             max_lifespan_ticks=int(d.get("max_lifespan_ticks", 21600)),
             inventory={str(k): float(v) for k, v in d.get("inventory", {}).items()},
             lexicon={
-                int(tok): {str(ctx): float(val) for ctx, val in ctx_map.items()}
+                (int(tok) if str(tok).lstrip("-").isdigit() else str(tok)): {
+                    str(ctx): (float(val) if isinstance(val, (int, float)) else val)
+                    for ctx, val in ctx_map.items()
+                }
                 for tok, ctx_map in d.get("lexicon", {}).items()
+                if isinstance(ctx_map, dict)
             },
             last_emitted_token=d.get("last_emitted_token"),
             last_action=str(d.get("last_action", "rest")),
@@ -311,7 +315,7 @@ class AgentEngine:
     ) -> List[Agent]:
         """
         Automatic Population Recovery (post-total-extinction only):
-        Spawn brand-new independent founders (half female, half male; default 2F + 2M)
+        Spawn brand-new independent founders (half female, half male; default 30F + 30M)
         with fresh unique IDs, fresh independent neural brains, zero inherited memories/ties,
         and no alteration of terrain, climate, depleted resources, or historical artifacts.
         """
@@ -325,7 +329,7 @@ class AgentEngine:
             tx = rng.uniform(140.0, world.width_m - 140.0)
             ty = rng.uniform(140.0, world.height_m - 140.0)
             cidx = world.cell_index_at(tx, ty)
-            if world.water[cidx] < 50.0 and world.slope[cidx] <= 1.2:
+            if world.water[cidx] < 0.35 and world.slope[cidx] <= 1.2:
                 has_w = 1.0 if world.has_nearby_water(tx, ty, 120.0) is not None else 0.2
                 score = has_w + 0.1 * min(5.0, world.food_flora[cidx])
                 if score > best_score:
@@ -334,18 +338,31 @@ class AgentEngine:
                     if has_w >= 1.0 and world.food_flora[cidx] > 0.5:
                         break
 
+        spread = 95.0 if count > 8 else 55.0
         spawned: List[Agent] = []
         for i in range(count):
             fx, fy = anchor_x, anchor_y
-            for _ in range(30):
+            placed_dry = False
+            for _ in range(36):
                 cand_x, cand_y = world.clamp_coords(
-                    anchor_x + rng.uniform(-55.0, 55.0),
-                    anchor_y + rng.uniform(-55.0, 55.0),
+                    anchor_x + rng.uniform(-spread, spread),
+                    anchor_y + rng.uniform(-spread, spread),
                 )
                 cidx = world.cell_index_at(cand_x, cand_y)
-                if world.water[cidx] < 50.0 and world.slope[cidx] <= 1.3:
+                if world.water[cidx] < 0.35 and world.slope[cidx] <= 1.25:
                     fx, fy = cand_x, cand_y
+                    placed_dry = True
                     break
+            if not placed_dry:
+                for _ in range(24):
+                    cand_x, cand_y = world.clamp_coords(
+                        anchor_x + rng.uniform(-spread * 1.4, spread * 1.4),
+                        anchor_y + rng.uniform(-spread * 1.4, spread * 1.4),
+                    )
+                    cidx = world.cell_index_at(cand_x, cand_y)
+                    if world.water[cidx] < 50.0 and world.slope[cidx] <= 1.3:
+                        fx, fy = cand_x, cand_y
+                        break
 
             aid = self.next_agent_id
             self.next_agent_id += 1
@@ -1158,7 +1175,8 @@ class AgentEngine:
                 medium = "stone_carving" if agent.inventory.get("stone", 0.0) >= 0.4 else "earth_mark"
                 if medium == "stone_carving":
                     agent.inventory["stone"] -= 0.4
-                tokens = sorted(agent.lexicon.keys())[:3] or [signal_idx]
+                int_tokens = sorted(int(k) for k in agent.lexicon.keys() if isinstance(k, int) or str(k).lstrip("-").isdigit())
+                tokens = int_tokens[:3] or [signal_idx]
                 obs_ids = [recent_ep.other_agent_id] if recent_ep.other_agent_id is not None else [agent.agent_id]
                 _, _, doc_truths = history.create_artifact_and_chronicle(
                     tick=tick,

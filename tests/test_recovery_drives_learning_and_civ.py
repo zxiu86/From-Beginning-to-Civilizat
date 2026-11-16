@@ -284,9 +284,10 @@ class TestRecoveryDrivesLearningAndCiv(unittest.TestCase):
             self.assertEqual(engine.recovery_cycle_count, 1)
             self.assertEqual(engine.current_cycle_number, 2)
             living_after = engine.agents.living_agents()
-            self.assertEqual(len(living_after), 4)
-            sexes = sorted(a.sex for a in living_after.values())
-            self.assertEqual(sexes, ["F", "F", "M", "M"])
+            self.assertEqual(len(living_after), 60)
+            sexes = [a.sex for a in living_after.values()]
+            self.assertEqual(sexes.count("F"), 30)
+            self.assertEqual(sexes.count("M"), 30)
 
             # Verify brand-new IDs > all prior dead IDs, fresh weights, empty memories/lexicon
             for ag in living_after.values():
@@ -322,16 +323,16 @@ class TestRecoveryDrivesLearningAndCiv(unittest.TestCase):
             self.assertEqual(arch_obs_chk["demographics"]["living_count"], 0)
             self.assertGreaterEqual(arch_obs_chk["demographics"]["deceased_count"], 6)
 
-            # Verify atomic idempotency across save/resume at same tick: MUST stay 4, NOT double to 8!
+            # Verify atomic idempotency across save/resume at same tick: MUST stay 60, NOT double to 120!
             engine.save_checkpoint(ckpt_dir)
             resumed = SimulationEngine.resume_from_checkpoint(ckpt_dir)
-            self.assertEqual(len(resumed.agents.living_agents()), 4)
+            self.assertEqual(len(resumed.agents.living_agents()), 60)
             self.assertEqual(resumed.recovery_cycle_count, 1)
             # Re-invoking extinction handler at same tick is a no-op
             self.assertFalse(resumed._handle_extinction_if_needed(resumed.clock.tick, resumed.clock.sim_date_str()))
-            self.assertEqual(len(resumed.agents.living_agents()), 4)
+            self.assertEqual(len(resumed.agents.living_agents()), 60)
 
-            # Kill all 4 founders in Cycle 2 -> Cycle 2 outcome becomes `re_extinct`, Cycle 3 launches cleanly
+            # Kill all 60 founders in Cycle 2 -> Cycle 2 outcome becomes `re_extinct`, Cycle 3 launches cleanly
             for a in list(resumed.agents.living_agents().values()):
                 a.is_alive = False
                 a.death_tick = resumed.clock.tick
@@ -341,7 +342,7 @@ class TestRecoveryDrivesLearningAndCiv(unittest.TestCase):
 
             self.assertEqual(resumed.recovery_cycle_count, 2)
             self.assertEqual(resumed.current_cycle_number, 3)
-            self.assertEqual(len(resumed.agents.living_agents()), 4)
+            self.assertEqual(len(resumed.agents.living_agents()), 60)
             self.assertEqual(len(resumed.population_recovery_history), 2)
             self.assertEqual(resumed.population_recovery_history[0]["outcome"], "re_extinct")
             self.assertEqual(resumed.population_recovery_history[1]["outcome"], "active")

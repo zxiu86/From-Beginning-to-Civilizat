@@ -226,7 +226,14 @@ export default function PopulationDrawer({
                     <span>
                       {t.recoveryFoundersLabel}:{' '}
                       <strong className="font-mono text-[#E6EDF3]">
-                        {cyc.new_agent_ids.map((id) => `#${id}`).join(', ') || '—'}
+                        {cyc.new_agent_ids.length === 0
+                          ? '—'
+                          : cyc.new_agent_ids.length <= 10
+                            ? cyc.new_agent_ids.map((id) => `#${id}`).join(', ')
+                            : `${cyc.new_agent_ids.length} (${cyc.new_agent_ids
+                                .slice(0, 6)
+                                .map((id) => `#${id}`)
+                                .join(', ')} … #${cyc.new_agent_ids[cyc.new_agent_ids.length - 1]})`}
                       </strong>
                     </span>
                     <span>

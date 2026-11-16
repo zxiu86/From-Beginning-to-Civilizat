@@ -254,7 +254,7 @@ class SimulationEngine:
         When living == 0 and auto_recover_on_extinction is True:
           1) Records `population_extinct` truth event and closes ended cycle stats.
           2) Saves an atomic pre-recovery extinction archive checkpoint BEFORE spawning founders.
-          3) Spawns 4 brand-new founders (2F, 2M) with fresh IDs, fresh brains, empty memories,
+          3) Spawns 60 brand-new founders (30F, 30M) with fresh IDs, fresh brains, empty memories,
              and zero world/resource/weather resets.
         """
         living = self.agents.living_agents()
@@ -316,7 +316,7 @@ class SimulationEngine:
             archive_path = self._active_checkpoint_dir / archive_rel
             self.save_checkpoint(archive_path)
 
-        # 2) Inject 4 brand-new founders (2F, 2M) cleanly into untouched environment
+        # 2) Inject 60 brand-new founders (30F, 30M) cleanly into untouched environment
         founders = self.agents.spawn_recovery_founders(
             tick=tick,
             count=max(2, self.config.recovery_founder_count),
@@ -329,6 +329,8 @@ class SimulationEngine:
             learning_rate=self.config.learning_rate,
         )
         founder_ids = [f.agent_id for f in founders]
+        f_cnt = sum(1 for f in founders if f.sex == "F")
+        m_cnt = len(founders) - f_cnt
         ended_cycle = self.current_cycle_number
         self.recovery_cycle_count += 1
         self.current_cycle_number += 1
@@ -340,7 +342,7 @@ class SimulationEngine:
             founders[0].y if founders else self.world.height_m * 0.5,
             (
                 f"Automatic Population Recovery Cycle #{self.current_cycle_number}: injected {len(founders)} new founders "
-                f"(2F, 2M; ids={founder_ids}) after extinction of Cycle #{ended_cycle}."
+                f"({f_cnt}F, {m_cnt}M; ids={founder_ids}) after extinction of Cycle #{ended_cycle}."
             ),
             metadata={
                 "cycle_number": self.current_cycle_number,

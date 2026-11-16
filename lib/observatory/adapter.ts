@@ -1,5 +1,8 @@
 import type {
+  ActionOutcomeStat,
+  AgentNeuralNetworkInfo,
   AgentTraits,
+  AggregatedActionOutcomeItem,
   AnyAgentRecord,
   CrimeRecordItem,
   DeathPenaltyRecord,
@@ -10,6 +13,8 @@ import type {
   HeardEmissionItem,
   LearningTelemetryData,
   LivingAgentFull,
+  NeuralAgentRankItem,
+  NeuralArchitectureSpec,
   ObservatorySnapshot,
   PopulationRecoveryCycleItem,
   RebirthRecordItem,
@@ -17,6 +22,8 @@ import type {
   RegionalResourceSlice,
   ResourceFunnel,
   SimulationAnalyticsPayload,
+  SkillSummaryItem,
+  SpatialKnowledgeSummary,
   SpatialMemoryItem,
   StableProtowordEntry,
   SurfaceArtifactItem,
@@ -24,6 +31,8 @@ import type {
   TrainingAnalyticsPayload,
   TrainingAttemptRecord,
   TrainingStatsOnAgent,
+  TrustNetworkAgentStat,
+  TrustNetworkSummary,
   WitnessAccountItem,
   WorldTerrainGrid,
 } from './types';
@@ -154,6 +163,57 @@ function sanitizeHeardEmissions(raw: unknown): HeardEmissionItem[] {
   }));
 }
 
+function normalizeActionOutcomes(raw: unknown): Record<string, ActionOutcomeStat> {
+  if (!isObject(raw)) return {};
+  const out: Record<string, ActionOutcomeStat> = {};
+  for (const [act, val] of Object.entries(raw)) {
+    if (isObject(val)) {
+      out[act] = {
+        count: asNumber(val.count, 0),
+        ema_reward: asNumber(val.ema_reward, 0),
+      };
+    }
+  }
+  return out;
+}
+
+function normalizeNeuralInfo(raw: unknown): AgentNeuralNetworkInfo | null {
+  if (!isObject(raw)) return null;
+  const ctxRaw = isObject(raw.recent_contexts) ? raw.recent_contexts : {};
+  const recent_contexts: Record<string, number> = {};
+  for (const [k, v] of Object.entries(ctxRaw)) {
+    recent_contexts[k] = asNumber(v, 0);
+  }
+  return {
+    architecture: asString(raw.architecture, 'GRUCell_ActorCriticSignalValue'),
+    obs_dim: asNumber(raw.obs_dim, 36),
+    hidden_dim: asNumber(raw.hidden_dim, 24),
+    num_actions: asNumber(raw.num_actions, 18),
+    num_signals: asNumber(raw.num_signals, 24),
+    learning_rate: asNumber(raw.learning_rate, 0.005),
+    backend: asString(raw.backend, 'pure_python_fallback'),
+    optimizer: asString(raw.optimizer, 'SGD_BPTT'),
+    parameter_count: asNumber(raw.parameter_count, 0),
+    total_updates: asNumber(raw.total_updates, 0),
+    experience_buffer_len: asNumber(raw.experience_buffer_len, 0),
+    experience_buffer_capacity: asNumber(raw.experience_buffer_capacity, 64),
+    last_loss: asNumber(raw.last_loss, 0),
+    value_loss: asNumber(raw.value_loss, 0),
+    mean_td_error: asNumber(raw.mean_td_error, 0),
+    policy_entropy: asNumber(raw.policy_entropy, 0),
+    mean_recent_reward: asNumber(raw.mean_recent_reward, 0),
+    weight_l2_norm: asNumber(raw.weight_l2_norm, 0),
+    hidden_state_l2_norm: asNumber(raw.hidden_state_l2_norm, 0),
+    hidden_state_mean_abs: asNumber(raw.hidden_state_mean_abs, 0),
+    weight_fingerprint: asString(raw.weight_fingerprint, ''),
+    recent_contexts,
+    death_penalty_count: asNumber(raw.death_penalty_count, 0),
+    death_penalty_history: Array.isArray(raw.death_penalty_history)
+      ? raw.death_penalty_history.filter(isObject)
+      : undefined,
+  };
+}
+
 function normalizeLivingAgent(
   raw: Record<string, unknown>,
   genealogyMap: Map<number, GenealogyNodeItem>,
@@ -207,6 +267,15 @@ function normalizeLivingAgent(
     }
   }
 
+  const spatialMemories = normalizeSpatialList(raw.spatial_memories);
+  const rawSpatialSummary = isObject(raw.spatial_summary) ? normalizeNumberDict(raw.spatial_summary) : null;
+  const derivedSpatialSummary: Record<string, number> = {};
+  if (!rawSpatialSummary) {
+    for (const sm of spatialMemories) {
+      derivedSpatialSummary[sm.resource_kind] = (derivedSpatialSummary[sm.resource_kind] ?? 0) + 1;
+    }
+  }
+
   return {
     agent_id: aid,
     sex: asString(raw.sex, 'F'),
@@ -245,14 +314,17 @@ function normalizeLivingAgent(
       typeof raw.original_cause_of_death === 'string' ? raw.original_cause_of_death : null,
     death_penalty_record: normalizeDeathPenalty(raw.death_penalty_record),
     brain_fingerprint: typeof raw.brain_fingerprint === 'string' ? raw.brain_fingerprint : null,
+    neural_network: normalizeNeuralInfo(raw.neural_network),
     training_stats: normalizeAgentTrainingStats(raw.training_stats),
     traits: normalizeTraits(raw.traits),
     inventory: Object.fromEntries(Object.entries(invObj).map(([k, v]) => [k, asNumber(v)])),
     skills: Object.fromEntries(Object.entries(skillsObj).map(([k, v]) => [k, asNumber(v)])),
+    action_outcomes: normalizeActionOutcomes(raw.action_outcomes),
     lexicon_size: asNumber(raw.lexicon_size, Object.keys(normalizedLexicon).length),
     lexicon: normalizedLexicon,
     episodic_memories: normalizeEpisodicList(raw.episodic_memories),
-    spatial_memories: normalizeSpatialList(raw.spatial_memories),
+    spatial_memories: spatialMemories,
+    spatial_summary: rawSpatialSummary ?? derivedSpatialSummary,
     social_ties: Array.isArray(raw.social_ties)
       ? raw.social_ties.filter(isObject).map((t) => ({
           agent_id: asNumber(t.agent_id),
@@ -487,7 +559,7 @@ function normalizeRecoveryState(raw: unknown): RecoveryStateData {
   return {
     auto_recover_on_extinction:
       typeof obj.auto_recover_on_extinction === 'boolean' ? obj.auto_recover_on_extinction : true,
-    recovery_founder_count: asNumber(obj.recovery_founder_count, 4),
+    recovery_founder_count: asNumber(obj.recovery_founder_count, 60),
     recovery_cycle_count: asNumber(obj.recovery_cycle_count, history.length),
     current_cycle_number: asNumber(obj.current_cycle_number, 1),
     current_cycle_start_tick: asNumber(obj.current_cycle_start_tick, 0),
@@ -495,16 +567,331 @@ function normalizeRecoveryState(raw: unknown): RecoveryStateData {
   };
 }
 
-function normalizeLearningTelemetry(raw: unknown, livingCount: number): LearningTelemetryData {
+function normalizeLearningTelemetry(
+  raw: unknown,
+  living: LivingAgentFull[],
+  backendName: string,
+): LearningTelemetryData {
   const obj = isObject(raw) ? raw : {};
+  const nLiving = living.length;
+
+  // Deterministic fallbacks derived solely from authentic living agent records when missing from legacy exports
+  const actionDistFallback: Record<string, number> = {};
+  const traitSums = {boldness: 0, empathy: 0, curiosity: 0, aggression: 0, cooperation: 0};
+  const vitalSums = {health: 0, hunger: 0, thirst: 0, energy: 0, injury: 0, disease_load: 0};
+  const outcomeAgg = new Map<string, {trials: number; weighted: number; agents: number}>();
+  const skillKeys = new Set<string>();
+  const spatialTotalsFallback: Record<string, number> = {};
+  const hazardCells: Array<{x: number; y: number; mentions: number; max_severity: number}> = [];
+
+  let totalTies = 0;
+  let trustedTies = 0;
+  let distrustedTies = 0;
+  let neutralTies = 0;
+  let trustSum = 0;
+  let famSum = 0;
+  const incomingTrust = new Map<number, number[]>();
+
+  for (const ag of living) {
+    actionDistFallback[ag.last_action] = (actionDistFallback[ag.last_action] ?? 0) + 1;
+    traitSums.boldness += ag.traits.boldness;
+    traitSums.empathy += ag.traits.empathy;
+    traitSums.curiosity += ag.traits.curiosity;
+    traitSums.aggression += ag.traits.aggression;
+    traitSums.cooperation += ag.traits.cooperation;
+    vitalSums.health += ag.health;
+    vitalSums.hunger += ag.hunger;
+    vitalSums.thirst += ag.thirst;
+    vitalSums.energy += ag.energy;
+    vitalSums.injury += ag.injury;
+    vitalSums.disease_load += ag.disease_load;
+
+    for (const sk of Object.keys(ag.skills)) {
+      skillKeys.add(sk);
+    }
+    for (const [actName, st] of Object.entries(ag.action_outcomes)) {
+      if (st.count <= 0) continue;
+      const prev = outcomeAgg.get(actName) ?? {trials: 0, weighted: 0, agents: 0};
+      prev.trials += st.count;
+      prev.weighted += st.ema_reward * st.count;
+      prev.agents += 1;
+      outcomeAgg.set(actName, prev);
+    }
+    for (const tie of ag.social_ties) {
+      totalTies += 1;
+      trustSum += tie.trust;
+      famSum += tie.familiarity;
+      if (tie.trust > 0.15) trustedTies += 1;
+      else if (tie.trust < -0.15) distrustedTies += 1;
+      else neutralTies += 1;
+      const arr = incomingTrust.get(tie.agent_id) ?? [];
+      arr.push(tie.trust);
+      incomingTrust.set(tie.agent_id, arr);
+    }
+    for (const [kind, cnt] of Object.entries(ag.spatial_summary)) {
+      spatialTotalsFallback[kind] = (spatialTotalsFallback[kind] ?? 0) + cnt;
+    }
+    for (const sm of ag.spatial_memories) {
+      if (sm.resource_kind === 'hazard') {
+        hazardCells.push({
+          x: sm.x,
+          y: sm.y,
+          mentions: 1,
+          max_severity: sm.estimated_amount,
+        });
+      }
+    }
+  }
+
+  const fallbackSkills: SkillSummaryItem[] = Array.from(skillKeys)
+    .map((sk) => {
+      let sum = 0;
+      let maxVal = 0;
+      let trained = 0;
+      let topId: number | null = null;
+      for (const ag of living) {
+        const v = ag.skills[sk] ?? 0;
+        sum += v;
+        if (v > 0.05) trained += 1;
+        if (v > maxVal) {
+          maxVal = v;
+          topId = ag.agent_id;
+        }
+      }
+      return {
+        skill: sk,
+        avg: nLiving > 0 ? Number((sum / nLiving).toFixed(4)) : 0,
+        max: Number(maxVal.toFixed(4)),
+        trained_agents_count: trained,
+        top_agent_id: maxVal > 0 ? topId : null,
+      };
+    })
+    .sort((a, b) => b.avg - a.avg || b.max - a.max);
+
+  const fallbackOutcomes: AggregatedActionOutcomeItem[] = Array.from(outcomeAgg.entries())
+    .map(([action, v]) => ({
+      action,
+      total_trials: Math.round(v.trials),
+      weighted_avg_reward: Number((v.weighted / Math.max(1, v.trials)).toFixed(4)),
+      agents_count: v.agents,
+    }))
+    .sort((a, b) => b.weighted_avg_reward - a.weighted_avg_reward || b.total_trials - a.total_trials);
+
+  const fallbackTopTrusted: TrustNetworkAgentStat[] = [];
+  const fallbackTopDistrusted: TrustNetworkAgentStat[] = [];
+  for (const [aid, list] of incomingTrust.entries()) {
+    const avg = list.reduce((a, b) => a + b, 0) / list.length;
+    const trCnt = list.filter((x) => x > 0.15).length;
+    const disCnt = list.filter((x) => x < -0.15).length;
+    if (trCnt > 0) {
+      fallbackTopTrusted.push({
+        agent_id: aid,
+        incoming_trusted_count: trCnt,
+        avg_incoming_trust: Number(avg.toFixed(3)),
+      });
+    }
+    if (disCnt > 0) {
+      fallbackTopDistrusted.push({
+        agent_id: aid,
+        incoming_distrusted_count: disCnt,
+        avg_incoming_trust: Number(avg.toFixed(3)),
+      });
+    }
+  }
+  fallbackTopTrusted.sort(
+    (a, b) =>
+      (b.incoming_trusted_count ?? 0) - (a.incoming_trusted_count ?? 0) ||
+      b.avg_incoming_trust - a.avg_incoming_trust,
+  );
+  fallbackTopDistrusted.sort(
+    (a, b) =>
+      (b.incoming_distrusted_count ?? 0) - (a.incoming_distrusted_count ?? 0) ||
+      a.avg_incoming_trust - b.avg_incoming_trust,
+  );
+
+  const fallbackArch: NeuralArchitectureSpec | null =
+    living.find((a) => a.neural_network !== null)?.neural_network
+      ? {
+          architecture: living.find((a) => a.neural_network)!.neural_network!.architecture,
+          obs_dim: living.find((a) => a.neural_network)!.neural_network!.obs_dim,
+          hidden_dim: living.find((a) => a.neural_network)!.neural_network!.hidden_dim,
+          num_actions: living.find((a) => a.neural_network)!.neural_network!.num_actions,
+          num_signals: living.find((a) => a.neural_network)!.neural_network!.num_signals,
+          learning_rate: living.find((a) => a.neural_network)!.neural_network!.learning_rate,
+          backend: living.find((a) => a.neural_network)!.neural_network!.backend,
+          optimizer: living.find((a) => a.neural_network)!.neural_network!.optimizer,
+          parameter_count: living.find((a) => a.neural_network)!.neural_network!.parameter_count,
+          experience_capacity: living.find((a) => a.neural_network)!.neural_network!
+            .experience_buffer_capacity,
+        }
+      : {
+          architecture: 'GRUCell_ActorCriticSignalValue',
+          obs_dim: 36,
+          hidden_dim: 24,
+          num_actions: 18,
+          num_signals: 24,
+          learning_rate: 0.005,
+          backend: backendName || 'unknown',
+          optimizer: backendName.includes('torch') ? 'Adam' : 'SGD_BPTT',
+          parameter_count: 0,
+          experience_capacity: 64,
+        };
+
+  const archRaw = isObject(obj.architecture) ? obj.architecture : null;
+  const architecture: NeuralArchitectureSpec | null = archRaw
+    ? {
+        architecture: asString(archRaw.architecture, 'GRUCell_ActorCriticSignalValue'),
+        obs_dim: asNumber(archRaw.obs_dim, 36),
+        hidden_dim: asNumber(archRaw.hidden_dim, 24),
+        num_actions: asNumber(archRaw.num_actions, 18),
+        num_signals: asNumber(archRaw.num_signals, 24),
+        learning_rate: asNumber(archRaw.learning_rate, 0.005),
+        backend: asString(archRaw.backend, backendName || 'unknown'),
+        optimizer: asString(archRaw.optimizer, 'SGD_BPTT'),
+        parameter_count: asNumber(archRaw.parameter_count, 0),
+        experience_capacity: asNumber(archRaw.experience_capacity, 64),
+      }
+    : fallbackArch;
+
+  const trustRaw = isObject(obj.trust_network_summary) ? obj.trust_network_summary : null;
+  const trust_network_summary: TrustNetworkSummary = trustRaw
+    ? {
+        total_ties: asNumber(trustRaw.total_ties, totalTies),
+        trusted_ties: asNumber(trustRaw.trusted_ties, trustedTies),
+        distrusted_ties: asNumber(trustRaw.distrusted_ties, distrustedTies),
+        neutral_ties: asNumber(trustRaw.neutral_ties, neutralTies),
+        avg_trust: asNumber(trustRaw.avg_trust, 0),
+        avg_familiarity: asNumber(trustRaw.avg_familiarity, 0),
+        top_trusted_agents: Array.isArray(trustRaw.top_trusted_agents)
+          ? trustRaw.top_trusted_agents.filter(isObject).map((r) => ({
+              agent_id: asNumber(r.agent_id),
+              incoming_trusted_count: asNumber(r.incoming_trusted_count, 0),
+              avg_incoming_trust: asNumber(r.avg_incoming_trust, 0),
+            }))
+          : [],
+        top_distrusted_agents: Array.isArray(trustRaw.top_distrusted_agents)
+          ? trustRaw.top_distrusted_agents.filter(isObject).map((r) => ({
+              agent_id: asNumber(r.agent_id),
+              incoming_distrusted_count: asNumber(r.incoming_distrusted_count, 0),
+              avg_incoming_trust: asNumber(r.avg_incoming_trust, 0),
+            }))
+          : [],
+      }
+    : {
+        total_ties: totalTies,
+        trusted_ties: trustedTies,
+        distrusted_ties: distrustedTies,
+        neutral_ties: neutralTies,
+        avg_trust: totalTies > 0 ? Number((trustSum / totalTies).toFixed(4)) : 0,
+        avg_familiarity: totalTies > 0 ? Number((famSum / totalTies).toFixed(4)) : 0,
+        top_trusted_agents: fallbackTopTrusted.slice(0, 8),
+        top_distrusted_agents: fallbackTopDistrusted.slice(0, 8),
+      };
+
+  const spRaw = isObject(obj.spatial_knowledge_summary) ? obj.spatial_knowledge_summary : null;
+  const spatial_knowledge_summary: SpatialKnowledgeSummary = spRaw
+    ? {
+        totals_by_kind: normalizeNumberDict(spRaw.totals_by_kind),
+        hazard_zones_sample: Array.isArray(spRaw.hazard_zones_sample)
+          ? spRaw.hazard_zones_sample.filter(isObject).map((h) => ({
+              x: asNumber(h.x),
+              y: asNumber(h.y),
+              mentions: asNumber(h.mentions, 1),
+              max_severity: asNumber(h.max_severity, 1),
+            }))
+          : [],
+      }
+    : {
+        totals_by_kind: spatialTotalsFallback,
+        hazard_zones_sample: hazardCells.slice(0, 12),
+      };
+
+  const learnedOutcomes: AggregatedActionOutcomeItem[] = Array.isArray(obj.learned_action_outcomes)
+    ? obj.learned_action_outcomes.filter(isObject).map((o) => ({
+        action: asString(o.action, 'idle'),
+        total_trials: asNumber(o.total_trials, 0),
+        weighted_avg_reward: asNumber(o.weighted_avg_reward, 0),
+        agents_count: asNumber(o.agents_count, 0),
+      }))
+    : fallbackOutcomes;
+
+  const popSkills: SkillSummaryItem[] = Array.isArray(obj.population_skills_summary)
+    ? obj.population_skills_summary.filter(isObject).map((s) => ({
+        skill: asString(s.skill, 'foraging'),
+        avg: asNumber(s.avg, 0),
+        max: asNumber(s.max, 0),
+        trained_agents_count: asNumber(s.trained_agents_count, 0),
+        top_agent_id: asNullableNumber(s.top_agent_id),
+      }))
+    : fallbackSkills;
+
+  const topNeuralAgents: NeuralAgentRankItem[] = Array.isArray(obj.top_neural_agents)
+    ? obj.top_neural_agents
+        .filter(isObject)
+        .map((item) => {
+          const nn = normalizeNeuralInfo(item);
+          if (!nn) return null;
+          return {agent_id: asNumber(item.agent_id), ...nn};
+        })
+        .filter((x): x is NeuralAgentRankItem => x !== null)
+    : living
+        .filter((a) => a.neural_network !== null)
+        .map((a) => ({agent_id: a.agent_id, ...a.neural_network!}))
+        .sort((a, b) => b.total_updates - a.total_updates || b.mean_recent_reward - a.mean_recent_reward)
+        .slice(0, 12);
+
+  const traitAvgRaw = isObject(obj.trait_averages) ? obj.trait_averages : null;
+  const vitalsAvgRaw = isObject(obj.vitals_averages) ? obj.vitals_averages : null;
+
   return {
-    living_brains_count: asNumber(obj.living_brains_count, livingCount),
+    living_brains_count: asNumber(obj.living_brains_count, nLiving),
     agents_with_updates: asNumber(obj.agents_with_updates, 0),
     avg_updates_per_agent: asNumber(obj.avg_updates_per_agent, 0),
     mean_td_error: asNumber(obj.mean_td_error, 0),
     mean_policy_entropy: asNumber(obj.mean_policy_entropy, 0),
     mean_loss: asNumber(obj.mean_loss, 0),
     mean_recent_reward: asNumber(obj.mean_recent_reward, 0),
+    mean_value_loss: asNumber(obj.mean_value_loss, 0),
+    min_policy_entropy: asNumber(obj.min_policy_entropy, 0),
+    max_policy_entropy: asNumber(obj.max_policy_entropy, 0),
+    avg_weight_l2_norm: asNumber(obj.avg_weight_l2_norm, 0),
+    avg_hidden_l2_norm: asNumber(obj.avg_hidden_l2_norm, 0),
+    total_experience_items: asNumber(obj.total_experience_items, 0),
+    architecture,
+    learned_action_outcomes: learnedOutcomes,
+    population_skills_summary: popSkills,
+    trust_network_summary,
+    spatial_knowledge_summary,
+    action_distribution: isObject(obj.action_distribution)
+      ? normalizeNumberDict(obj.action_distribution)
+      : actionDistFallback,
+    trait_averages: traitAvgRaw
+      ? normalizeTraits(traitAvgRaw)
+      : {
+          boldness: nLiving > 0 ? Number((traitSums.boldness / nLiving).toFixed(3)) : 0,
+          empathy: nLiving > 0 ? Number((traitSums.empathy / nLiving).toFixed(3)) : 0,
+          curiosity: nLiving > 0 ? Number((traitSums.curiosity / nLiving).toFixed(3)) : 0,
+          aggression: nLiving > 0 ? Number((traitSums.aggression / nLiving).toFixed(3)) : 0,
+          cooperation: nLiving > 0 ? Number((traitSums.cooperation / nLiving).toFixed(3)) : 0,
+        },
+    vitals_averages: vitalsAvgRaw
+      ? {
+          health: asNumber(vitalsAvgRaw.health, 0),
+          hunger: asNumber(vitalsAvgRaw.hunger, 0),
+          thirst: asNumber(vitalsAvgRaw.thirst, 0),
+          energy: asNumber(vitalsAvgRaw.energy, 0),
+          injury: asNumber(vitalsAvgRaw.injury, 0),
+          disease_load: asNumber(vitalsAvgRaw.disease_load, 0),
+        }
+      : {
+          health: nLiving > 0 ? Number((vitalSums.health / nLiving).toFixed(3)) : 0,
+          hunger: nLiving > 0 ? Number((vitalSums.hunger / nLiving).toFixed(3)) : 0,
+          thirst: nLiving > 0 ? Number((vitalSums.thirst / nLiving).toFixed(3)) : 0,
+          energy: nLiving > 0 ? Number((vitalSums.energy / nLiving).toFixed(3)) : 0,
+          injury: nLiving > 0 ? Number((vitalSums.injury / nLiving).toFixed(3)) : 0,
+          disease_load: nLiving > 0 ? Number((vitalSums.disease_load / nLiving).toFixed(3)) : 0,
+        },
+    top_neural_agents: topNeuralAgents,
   };
 }
 
@@ -1075,9 +1462,11 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
           typeof d.original_cause_of_death === 'string' ? d.original_cause_of_death : null,
         death_penalty_record: normalizeDeathPenalty(d.death_penalty_record),
         brain_fingerprint: typeof d.brain_fingerprint === 'string' ? d.brain_fingerprint : null,
+        neural_network: normalizeNeuralInfo(d.neural_network),
         training_stats: normalizeAgentTrainingStats(d.training_stats),
         traits: normalizeTraits(d.traits),
         skills: Object.fromEntries(Object.entries(skillsObj).map(([k, v]) => [k, asNumber(v)])),
+        action_outcomes: normalizeActionOutcomes(d.action_outcomes),
         lexicon_size: asNumber(d.lexicon_size),
         episodic_memories: normalizeEpisodicList(d.episodic_memories),
         social_ties: Array.isArray(d.social_ties)
@@ -1116,6 +1505,7 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
         original_cause_of_death: null,
         death_penalty_record: null,
         brain_fingerprint: null,
+        neural_network: null,
         training_stats: null,
         traits: {
           boldness: 0.5,
@@ -1125,6 +1515,7 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
           cooperation: 0.5,
         },
         skills: {},
+        action_outcomes: {},
         lexicon_size: 0,
         episodic_memories: [],
         social_ties: [],
@@ -1262,9 +1653,11 @@ export function validateAndNormalizeSnapshot(input: unknown): ObservatorySnapsho
     : [];
 
   const artifactsCount = asNumber(histObj.layer_2_surface_artifacts_count);
+  const backendName = asString(input.backend, 'unknown');
   const normalizedLearningTelemetry = normalizeLearningTelemetry(
     input.learning_telemetry,
-    livingAgentsFull.length,
+    livingAgentsFull,
+    backendName,
   );
   const normalizedAnalytics = normalizeAnalytics(
     input.analytics,

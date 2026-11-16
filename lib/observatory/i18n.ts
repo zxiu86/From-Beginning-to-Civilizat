@@ -360,6 +360,79 @@ export interface Translations {
   learningReward: string;
   deceptionRate: string;
 
+  // Learned Outcomes, Trust/Distrust, Skills Leaderboard, Neural Network & Sensory
+  whatLearnedSection: string;
+  learnedPositiveHabits: string;
+  learnedAvoidedActions: string;
+  trialsLabel: string;
+  avgOutcomeReward: string;
+  noLearnedOutcomesYet: string;
+  recentCognitiveContexts: string;
+  learnedBehaviorsNote: string;
+  trustDistrustTitle: string;
+  trustedAllies: string;
+  distrustedAgents: string;
+  neutralAcquaintances: string;
+  trustScore: string;
+  familiarityScore: string;
+  avoidedHazards: string;
+  noTrustedYet: string;
+  noDistrustedYet: string;
+  noHazardsMapped: string;
+  trustNetworkSummaryTitle: string;
+  mostTrustedTitle: string;
+  mostDistrustedTitle: string;
+  trustedTiesCount: string;
+  distrustedTiesCount: string;
+  neutralTiesCount: string;
+  avgTrustIndex: string;
+  avgFamiliarityIndex: string;
+  incomingTiesLabel: string;
+  skillLeaderboardTitle: string;
+  topMasterLabel: string;
+  skilledAgentsCount: string;
+  avgProficiency: string;
+  peakProficiency: string;
+  neuralNetworkTitle: string;
+  nnArchitecture: string;
+  nnBackend: string;
+  nnOptimizer: string;
+  nnParameters: string;
+  nnLearningRate: string;
+  nnUpdatesCount: string;
+  nnExpBuffer: string;
+  nnPolicyLoss: string;
+  nnValueLoss: string;
+  nnTdError: string;
+  nnEntropy: string;
+  nnEntropyRange: string;
+  nnWeightNorm: string;
+  nnHiddenNorm: string;
+  nnWeightFingerprint: string;
+  nnRecentReward: string;
+  nnDeathPenalties: string;
+  nnTopBrainsTitle: string;
+  nnLegacyUnavailable: string;
+  sensoryPerceptionTitle: string;
+  visionRangeLabel: string;
+  hearingRangeLabel: string;
+  nearbyAgentsVisible: string;
+  nearbyFaunaVisible: string;
+  nearbyArtifactsVisible: string;
+  heardSignalsTitle: string;
+  noSignalsHeard: string;
+  localResourcesSpot: string;
+  actionDistTitle: string;
+  traitAveragesTitle: string;
+  vitalsAveragesTitle: string;
+  spatialCoverageTitle: string;
+  hazardsMappedTitle: string;
+  hazardZonesTitle: string;
+  mentionsLabel: string;
+  severityLabel: string;
+  showMoreIds: string;
+  showLessIds: string;
+
   actions: Record<string, string>;
   causes: Record<string, string>;
   seasons: Record<string, string>;
@@ -723,6 +796,77 @@ const AR: Translations = {
   learningLoss: 'متوسط الخسارة',
   learningReward: 'المكافأة الأخيرة',
   deceptionRate: 'الخداع والغش',
+  whatLearnedSection: 'ماذا تعلّم السكان؟ (نتائج الأفعال المكتسبة)',
+  learnedPositiveHabits: 'سلوكيات معزّزة (مكافأة موجبة)',
+  learnedAvoidedActions: 'سلوكيات يتجنّبها (مكافأة سالبة)',
+  trialsLabel: 'محاولات',
+  avgOutcomeReward: 'متوسط العائد الموزون',
+  noLearnedOutcomesYet: 'لم تتراكم نتائج سلوكية كافية في السجل التجريبي بعد.',
+  recentCognitiveContexts: 'السياقات الإدراكية الحديثة في المخزن',
+  learnedBehaviorsNote: 'مشتقة مباشرة من مصفوفة نتائج التجربة (action_outcomes) ومتوسط المكافأة المتناقص داخل الشبكة العصبية.',
+  trustDistrustTitle: 'بماذا يثقون وبماذا لا يثقون؟',
+  trustedAllies: 'أفراد يثق بهم',
+  distrustedAgents: 'أفراد لا يثق بهم',
+  neutralAcquaintances: 'معارف محايدون',
+  trustScore: 'الثقة',
+  familiarityScore: 'الألفة',
+  avoidedHazards: 'مخاطر مكانية مسجّلة للتجنب',
+  noTrustedYet: 'لا توجد روابط ثقة موجبة (> 0.15) حتى الآن.',
+  noDistrustedYet: 'لا توجد روابط انعدام ثقة (< -0.15) حتى الآن.',
+  noHazardsMapped: 'لم تُرصد نقاط خطر في الخريطة الذهنية.',
+  trustNetworkSummaryTitle: 'شبكة الثقة والارتياب بين السكان',
+  mostTrustedTitle: 'الأفراد الأكثر حصولاً على الثقة',
+  mostDistrustedTitle: 'الأفراد الأكثر فقداناً للثقة',
+  trustedTiesCount: 'روابط ثقة موجبة',
+  distrustedTiesCount: 'روابط عدم ثقة',
+  neutralTiesCount: 'روابط محايدة',
+  avgTrustIndex: 'متوسط الثقة البينية',
+  avgFamiliarityIndex: 'متوسط الألفة البينية',
+  incomingTiesLabel: 'روابط واردة',
+  skillLeaderboardTitle: 'خريطة إتقان المهارات لدى السكان',
+  topMasterLabel: 'الأعلى مهارة',
+  skilledAgentsCount: 'المتدرّبون',
+  avgProficiency: 'المتوسط',
+  peakProficiency: 'الأعلى',
+  neuralNetworkTitle: 'معلومات الشبكة العصبية',
+  nnArchitecture: 'البنية العصبية',
+  nnBackend: 'محرك التنفيذ',
+  nnOptimizer: 'المُحسِّن',
+  nnParameters: 'عدد المعاملات',
+  nnLearningRate: 'معدل التعلّم',
+  nnUpdatesCount: 'إجمالي التحديثات',
+  nnExpBuffer: 'مخزن التجارب',
+  nnPolicyLoss: 'خسارة السياسة (Loss)',
+  nnValueLoss: 'خسارة القيمة (Value Loss)',
+  nnTdError: 'خطأ TD',
+  nnEntropy: 'إنتروبيا السياسة',
+  nnEntropyRange: 'نطاق الإنتروبيا (أدنى – متوسط – أعلى)',
+  nnWeightNorm: 'معيار الأوزان L2',
+  nnHiddenNorm: 'معيار الحالة الخفية L2',
+  nnWeightFingerprint: 'بصمة الأوزان',
+  nnRecentReward: 'متوسط المكافأة الحديثة',
+  nnDeathPenalties: 'عقوبات الموت العصبية',
+  nnTopBrainsTitle: 'أكثر العقول العصبية تحديثاً وتعلّماً',
+  nnLegacyUnavailable: 'ملاحظة: هذه اللقطة قديمة ولا تحتوي على قياسات الأوزان والحالة الخفية التفصيلية للشبكة.',
+  sensoryPerceptionTitle: 'الإدراك الحسي المحلي (بدون تخاطر)',
+  visionRangeLabel: 'مدى الرؤية',
+  hearingRangeLabel: 'مدى السمع',
+  nearbyAgentsVisible: 'أفراد مرئيون بالجوار',
+  nearbyFaunaVisible: 'كائنات حيوانية مرئية',
+  nearbyArtifactsVisible: 'نقوش مرئية',
+  heardSignalsTitle: 'إشارات مسموعة بالجوار',
+  noSignalsHeard: 'لا توجد إشارات صوتية في نطاق السمع حالياً.',
+  localResourcesSpot: 'الموارد في الخلية الحالية',
+  actionDistTitle: 'توزيع الأفعال الحالية للأحياء',
+  traitAveragesTitle: 'متوسط السمات الشخصية للسكان',
+  vitalsAveragesTitle: 'متوسط المؤشرات الحيوية للأحياء',
+  spatialCoverageTitle: 'المعرفة المكانية ونقاط الخطر المرصودة',
+  hazardsMappedTitle: 'مواقع الخطر المحفوظة',
+  hazardZonesTitle: 'أبرز مناطق الخطر في ذاكرة السكان',
+  mentionsLabel: 'رصد',
+  severityLabel: 'الشدة',
+  showMoreIds: 'عرض الكل',
+  showLessIds: 'إخفاء',
   actions: {
     idle: 'سكون / تأمل',
     rest: 'راحة واستشفاء',
@@ -823,6 +967,12 @@ const AR: Translations = {
     ally_greet: 'تحية تحالف',
     help_needed: 'طلب مساعدة',
     storm_warning: 'تحذير مناخي',
+    starving_for_food: 'جوع حاد (بحث عن غذاء)',
+    thirsty_for_water: 'عطش حاد (بحث عن ماء)',
+    predator_nearby: 'اقتراب مفترس',
+    social_exchange: 'تبادل اجتماعي',
+    hurt_seeking_aid: 'إصابة وطلب رعاية',
+    general: 'وضع عام',
   },
   milestones: {
     first_movement_tick: 'أول حركة في العالم',
@@ -1218,6 +1368,77 @@ const EN: Translations = {
   learningLoss: 'Mean Loss',
   learningReward: 'Recent Reward',
   deceptionRate: 'Deception',
+  whatLearnedSection: 'What Agents Learned (Action Outcomes)',
+  learnedPositiveHabits: 'Reinforced Habits (Positive EMA)',
+  learnedAvoidedActions: 'Avoided / Penalized Actions (Negative EMA)',
+  trialsLabel: 'trials',
+  avgOutcomeReward: 'Weighted Avg Outcome',
+  noLearnedOutcomesYet: 'No experiential action outcome statistics accumulated yet.',
+  recentCognitiveContexts: 'Recent Cognitive Contexts in Buffer',
+  learnedBehaviorsNote: 'Derived directly from neural action_outcomes EMA rewards and experiential replay buffers.',
+  trustDistrustTitle: 'Trust & Distrust Network',
+  trustedAllies: 'Trusted Allies',
+  distrustedAgents: 'Distrusted Individuals',
+  neutralAcquaintances: 'Neutral Acquaintances',
+  trustScore: 'Trust',
+  familiarityScore: 'Familiarity',
+  avoidedHazards: 'Remembered Spatial Hazards',
+  noTrustedYet: 'No positive trust ties (> 0.15) formed yet.',
+  noDistrustedYet: 'No distrust ties (< -0.15) recorded yet.',
+  noHazardsMapped: 'No hazard coordinates stored in mental map.',
+  trustNetworkSummaryTitle: 'Population Trust & Distrust Summary',
+  mostTrustedTitle: 'Most Trusted Individuals',
+  mostDistrustedTitle: 'Most Distrusted Individuals',
+  trustedTiesCount: 'Trusted Ties',
+  distrustedTiesCount: 'Distrusted Ties',
+  neutralTiesCount: 'Neutral Ties',
+  avgTrustIndex: 'Mean Pairwise Trust',
+  avgFamiliarityIndex: 'Mean Familiarity',
+  incomingTiesLabel: 'incoming ties',
+  skillLeaderboardTitle: 'Population Skill Mastery',
+  topMasterLabel: 'Top Agent',
+  skilledAgentsCount: 'Agents > 0',
+  avgProficiency: 'Average',
+  peakProficiency: 'Peak',
+  neuralNetworkTitle: 'Neural Network Telemetry',
+  nnArchitecture: 'Architecture',
+  nnBackend: 'Execution Backend',
+  nnOptimizer: 'Optimizer',
+  nnParameters: 'Parameters',
+  nnLearningRate: 'Learning Rate',
+  nnUpdatesCount: 'Total Updates',
+  nnExpBuffer: 'Experience Buffer',
+  nnPolicyLoss: 'Policy Loss',
+  nnValueLoss: 'Value Loss',
+  nnTdError: 'Mean TD Error',
+  nnEntropy: 'Policy Entropy',
+  nnEntropyRange: 'Entropy Range (Min – Mean – Max)',
+  nnWeightNorm: 'Weight L2 Norm',
+  nnHiddenNorm: 'Hidden State L2 Norm',
+  nnWeightFingerprint: 'Weight Fingerprint',
+  nnRecentReward: 'Recent Mean Reward',
+  nnDeathPenalties: 'Death Penalty Updates',
+  nnTopBrainsTitle: 'Top Trained Neural Brains',
+  nnLegacyUnavailable: 'Notice: Legacy snapshot omits per-agent GRU weight norms and loss telemetry.',
+  sensoryPerceptionTitle: 'Local Sensory Perception (Non-Telepathic)',
+  visionRangeLabel: 'Vision Radius',
+  hearingRangeLabel: 'Hearing Radius',
+  nearbyAgentsVisible: 'Visible Agents',
+  nearbyFaunaVisible: 'Visible Fauna',
+  nearbyArtifactsVisible: 'Visible Artifacts',
+  heardSignalsTitle: 'Heard Vocal Signals',
+  noSignalsHeard: 'No vocal signals heard within hearing radius.',
+  localResourcesSpot: 'Local Cell Resources',
+  actionDistTitle: 'Living Population Action Distribution',
+  traitAveragesTitle: 'Population Trait Averages',
+  vitalsAveragesTitle: 'Living Vitals Averages',
+  spatialCoverageTitle: 'Spatial Knowledge & Hazard Mapping',
+  hazardsMappedTitle: 'Hazards Mapped',
+  hazardZonesTitle: 'Top Remembered Hazard Coordinates',
+  mentionsLabel: 'mentions',
+  severityLabel: 'severity',
+  showMoreIds: 'Show all',
+  showLessIds: 'Collapse',
   actions: {
     idle: 'Idle',
     rest: 'Rest / Recover',
@@ -1318,6 +1539,12 @@ const EN: Translations = {
     ally_greet: 'Ally Greeting',
     help_needed: 'Help Needed',
     storm_warning: 'Weather Warning',
+    starving_for_food: 'Acute Hunger',
+    thirsty_for_water: 'Acute Thirst',
+    predator_nearby: 'Predator Nearby',
+    social_exchange: 'Social Exchange',
+    hurt_seeking_aid: 'Injured / Seeking Aid',
+    general: 'General State',
   },
   milestones: {
     first_movement_tick: 'First Movement',

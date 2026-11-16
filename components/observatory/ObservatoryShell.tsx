@@ -9,12 +9,14 @@ import {
   Coins,
   Droplets,
   HeartCrack,
+  HeartPulse,
   History,
   Info,
   Landmark,
   Layers,
   LayoutDashboard,
   Milestone,
+  ShieldCheck,
   Sprout,
   Users,
 } from 'lucide-react';
@@ -794,6 +796,128 @@ export default function ObservatoryShell() {
                         </section>
                       </div>
 
+                      {/* Population Behavior Distribution, Traits & Living Vitals Averages */}
+                      {snapshot.learning_telemetry && (
+                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                          <section className="space-y-2.5 rounded-md border border-white/10 bg-[#121821] p-4">
+                            <h3 className="flex items-center gap-1.5 font-semibold text-[#F2BE49]">
+                              <Activity className="h-4 w-4" />
+                              <span>{t.actionDistTitle}</span>
+                            </h3>
+                            {(() => {
+                              const entries = Object.entries(
+                                snapshot.learning_telemetry.action_distribution ?? {},
+                              ).sort((a, b) => b[1] - a[1]);
+                              const totalActs = Math.max(
+                                1,
+                                entries.reduce((sum, [, cnt]) => sum + cnt, 0),
+                              );
+                              if (entries.length === 0) {
+                                return (
+                                  <div className="rounded border border-white/10 bg-[#18212C] p-4 text-center text-[#9FB0C3]">
+                                    —
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="space-y-1.5">
+                                  {entries.slice(0, 8).map(([act, cnt]) => {
+                                    const pct = Math.round((cnt / totalActs) * 100);
+                                    return (
+                                      <div key={act} className="space-y-0.5 text-[11px]">
+                                        <div className="flex justify-between">
+                                          <span className="text-[#E6EDF3]">
+                                            {t.actions[act] ?? act}
+                                          </span>
+                                          <span className="font-mono tabular-nums text-[#F2BE49]">
+                                            {cnt} ({pct}%)
+                                          </span>
+                                        </div>
+                                        <div className="h-1.5 w-full overflow-hidden rounded bg-[#18212C]">
+                                          <div
+                                            className="h-full bg-[#D99B26]"
+                                            style={{width: `${pct}%`}}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+                          </section>
+
+                          <section className="space-y-3 rounded-md border border-white/10 bg-[#121821] p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h3 className="flex items-center gap-1.5 font-semibold text-[#57b8d8]">
+                                <HeartPulse className="h-4 w-4" />
+                                <span>
+                                  {t.traitAveragesTitle} & {t.vitalsAveragesTitle}
+                                </span>
+                              </h3>
+                              <span className="flex items-center gap-1 font-mono text-[10px] tabular-nums text-[#9FB0C3]">
+                                <ShieldCheck className="h-3 w-3 text-emerald-400" />
+                                +{snapshot.learning_telemetry.trust_network_summary.trusted_ties} / -
+                                {snapshot.learning_telemetry.trust_network_summary.distrusted_ties}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              {Object.entries(snapshot.learning_telemetry.trait_averages).map(
+                                ([traitKey, val]) => {
+                                  const pct = Math.max(0, Math.min(100, Math.round(val * 100)));
+                                  return (
+                                    <div key={traitKey} className="space-y-0.5 text-[11px]">
+                                      <div className="flex justify-between">
+                                        <span className="text-[#9FB0C3]">
+                                          {t.traits[traitKey] ?? traitKey}
+                                        </span>
+                                        <span className="font-mono tabular-nums text-[#E6EDF3]">
+                                          {safeFixed(val, 2)}
+                                        </span>
+                                      </div>
+                                      <div className="h-1.5 w-full overflow-hidden rounded bg-[#18212C]">
+                                        <div
+                                          className="h-full bg-[#3B82A6]"
+                                          style={{width: `${pct}%`}}
+                                        />
+                                      </div>
+                                    </div>
+                                  );
+                                },
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 border-t border-white/5 pt-2.5 font-mono text-[10px] tabular-nums sm:grid-cols-4">
+                              <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                                <div className="font-sans text-[#9FB0C3]">{t.health}</div>
+                                <div className="font-bold text-emerald-300">
+                                  {Math.round(snapshot.learning_telemetry.vitals_averages.health * 100)}%
+                                </div>
+                              </div>
+                              <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                                <div className="font-sans text-[#9FB0C3]">{t.energy}</div>
+                                <div className="font-bold text-[#57b8d8]">
+                                  {Math.round(snapshot.learning_telemetry.vitals_averages.energy * 100)}%
+                                </div>
+                              </div>
+                              <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                                <div className="font-sans text-[#9FB0C3]">{t.hunger}</div>
+                                <div className="font-bold text-[#F2BE49]">
+                                  {Math.round(snapshot.learning_telemetry.vitals_averages.hunger * 100)}%
+                                </div>
+                              </div>
+                              <div className="rounded border border-white/10 bg-[#18212C] p-2">
+                                <div className="font-sans text-[#9FB0C3]">{t.thirst}</div>
+                                <div className="font-bold text-red-300">
+                                  {Math.round(snapshot.learning_telemetry.vitals_averages.thirst * 100)}%
+                                </div>
+                              </div>
+                            </div>
+                          </section>
+                        </div>
+                      )}
+
                       {/* Time-Series Telemetry Charts */}
                       <TelemetryDrawer t={t} locale={locale} snapshot={snapshot} />
                     </div>
@@ -828,7 +952,9 @@ export default function ObservatoryShell() {
                   {activeSection === 'civilization' && (
                     <CivilizationDrawer t={t} snapshot={snapshot} />
                   )}
-                  {activeSection === 'learning' && <LearningPanel t={t} snapshot={snapshot} />}
+                  {activeSection === 'learning' && (
+                    <LearningPanel t={t} snapshot={snapshot} onSelectAgent={handleInspectAgent} />
+                  )}
                   {activeSection === 'training' && (
                     <TrainingPanel t={t} snapshot={snapshot} onSelectAgent={handleInspectAgent} />
                   )}

@@ -96,7 +96,7 @@ class SimulationConfig:
 
     # Automatic Population Recovery System (legacy mode only; disabled for promoted civilizations)
     auto_recover_on_extinction: bool = True
-    recovery_founder_count: int = 4
+    recovery_founder_count: int = 60
     training_rebirth_enabled: bool = False
 
     # Runtime & Persistence

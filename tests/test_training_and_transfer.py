@@ -293,14 +293,14 @@ class TestIsolatedTrainingAndTransfer(unittest.TestCase):
             civ_tps = round(10.0 / civ_dt, 2)
             mem_civ_mb = _read_rss_mb()
 
-            # Verify permanent death in Civilization (NO training rebirth & NO 4-founder extinction loop)
+            # Verify permanent death in Civilization (NO training rebirth & NO 60-founder extinction loop)
             for ag in list(civ_engine.agents.living_agents().values()):
                 ag.is_alive = False
                 ag.death_tick = civ_engine.clock.tick
                 ag.cause_of_death = "starvation"
             civ_engine._active_checkpoint_dir = civ_ckpt
             civ_engine.step_tick()
-            self.assertEqual(len(civ_engine.agents.living_agents()), 0, "Promoted Civilization must NEVER auto-revive or respawn 4 founders")
+            self.assertEqual(len(civ_engine.agents.living_agents()), 0, "Promoted Civilization must NEVER auto-revive or respawn 60 founders")
             self.assertEqual(civ_engine.recovery_cycle_count, 0)
 
             civ_engine.save_checkpoint(civ_ckpt)
@@ -474,7 +474,7 @@ class TestIsolatedTrainingAndTransfer(unittest.TestCase):
             ])
             self.assertEqual(rc, 0)
             civ_manifest = json.loads((civ_ckpt / "manifest.json").read_text(encoding="utf-8"))
-            self.assertEqual(civ_manifest["tick"], 4)
+            self.assertEqual(civ_manifest["sim_tick"], 4)
             self.assertEqual(cli_main(["inspect-world", "--checkpoint-dir", str(civ_ckpt)]), 0)
 
             # Confirm weights, memory, lexicon, discovered_techs survived Full World import & run

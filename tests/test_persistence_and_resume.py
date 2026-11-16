@@ -113,13 +113,35 @@ class TestPersistenceAndResume(unittest.TestCase):
             self.assertIn("deceased_agents_archive", obs)
             self.assertGreaterEqual(len(obs["timeline_series"]), 2)
 
-            # Verify every living agent includes bounded local_perception and NEVER exposes context_tag in heard_emissions
+            # Verify every living agent includes bounded local_perception, action_outcomes, and neural_network
             for ag in obs["living_agents_full"]:
                 lp = ag["local_perception"]
                 self.assertGreater(lp["vision_radius_m"], 0)
                 self.assertIsInstance(lp["visible_agent_ids"], list)
                 for em in lp["heard_emissions"]:
                     self.assertNotIn("context_tag", em)
+                self.assertIn("action_outcomes", ag)
+                self.assertIsInstance(ag["action_outcomes"], dict)
+                self.assertIn("neural_network", ag)
+                nn_info = ag["neural_network"]
+                self.assertIsNotNone(nn_info)
+                self.assertGreater(nn_info["parameter_count"], 100)
+                self.assertEqual(nn_info["obs_dim"], 36)
+                self.assertEqual(nn_info["hidden_dim"], 24)
+
+            lt = obs["learning_telemetry"]
+            self.assertIn("architecture", lt)
+            self.assertIn("learned_action_outcomes", lt)
+            self.assertIn("population_skills_summary", lt)
+            self.assertIn("trust_network_summary", lt)
+            self.assertIn("spatial_knowledge_summary", lt)
+            self.assertIn("action_distribution", lt)
+            self.assertIn("trait_averages", lt)
+            self.assertIn("vitals_averages", lt)
+            self.assertIn("top_neural_agents", lt)
+            self.assertGreaterEqual(len(lt["learned_action_outcomes"]), 1)
+            self.assertGreaterEqual(len(lt["population_skills_summary"]), 1)
+            self.assertGreaterEqual(len(lt["top_neural_agents"]), 1)
 
 
 if __name__ == "__main__":

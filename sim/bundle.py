@@ -342,7 +342,7 @@ def promote_bundle_to_civilization(
     Promote verified trained population bundle into a brand-new full 5 km^2 Civilization World.
     Strictly preserves every agent's identity, neural weights, optimizer state, memories, skills,
     traits, lexicon, discovered_techs, and training stats, while permanently disabling training rebirth
-    and legacy 4-founder recovery.
+    and legacy 60-founder recovery.
     Never modifies or replaces any existing `civilization_checkpoint_dir` unless full verification
     and staged checkpoint verification succeed completely.
     """

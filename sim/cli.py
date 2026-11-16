@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(p_new)
     p_new.add_argument("--seed", type=int, default=42)
     p_new.add_argument("--initial-population", type=int, default=100)
-    p_new.add_argument("--no-auto-recover", action="store_true", help="Disable legacy 4-founder post-extinction recovery")
+    p_new.add_argument("--no-auto-recover", action="store_true", help="Disable legacy 60-founder post-extinction recovery")
     p_new.add_argument("--frames-dir", type=Path, default=None, help="Optional directory to store initial snapshot frame")
 
     p_res = sub.add_parser("resume-world", help="Strictly resume an existing world from a verified checkpoint")

@@ -446,6 +446,7 @@ class PersistenceEngine:
 
         base_vision = config.base_vision_radius_m if config is not None else 120.0
         base_hearing = config.base_hearing_radius_m if config is not None else 180.0
+        exp_cap = config.max_experience_buffer if config is not None else 64
         bucket_size = 150.0
         spatial_buckets: Dict[Tuple[int, int], List[int]] = {}
         for aid, ag in living_dict.items():
@@ -471,6 +472,29 @@ class PersistenceEngine:
             ]
             ties.sort(key=lambda item: (-item["familiarity"], -abs(item["trust"])))
             return ties[:30]
+
+        def _action_outcomes_dict(ag: Agent) -> Dict[str, dict]:
+            items = sorted(
+                ag.memory.action_outcomes.items(),
+                key=lambda kv: (-float(kv[1].get("ema_reward", 0.0)), -float(kv[1].get("count", 0.0))),
+            )
+            return {
+                str(act): {
+                    "count": int(round(float(val.get("count", 0.0)))),
+                    "ema_reward": round(float(val.get("ema_reward", 0.0)), 4),
+                }
+                for act, val in items
+            }
+
+        def _spatial_ordered(ag: Agent) -> Tuple[List[dict], Dict[str, int]]:
+            summary: Dict[str, int] = {}
+            traces = list(ag.memory.spatial_map.values())
+            for tr in traces:
+                k = str(tr.kind)
+                summary[k] = summary.get(k, 0) + 1
+            # Preserve hazards first so danger memory isn't truncated away
+            traces.sort(key=lambda tr: (0 if tr.kind == "hazard" else 1, -tr.last_seen_tick))
+            return [asdict(s) for s in traces[:30]], summary
 
         living_agents_full: List[dict] = []
         for a in living:
@@ -505,6 +529,8 @@ class PersistenceEngine:
                 }
                 for em in perc.heard_emissions
             ]
+            sp_list, sp_summary = _spatial_ordered(a)
+            nn_info = a.brain.telemetry_summary(max_buffer=exp_cap, include_death_penalties=True) if a.brain is not None else None
             living_agents_full.append(
                 {
                     "agent_id": a.agent_id,
@@ -539,13 +565,16 @@ class PersistenceEngine:
                     "original_cause_of_death": a.original_cause_of_death,
                     "death_penalty_record": a.death_penalty_record,
                     "brain_fingerprint": a.brain.weight_fingerprint() if a.brain is not None else None,
+                    "neural_network": nn_info,
                     "traits": asdict(a.traits),
                     "inventory": {k: round(v, 3) for k, v in a.inventory.items()},
                     "skills": {k: round(v, 3) for k, v in a.memory.skills.items()},
+                    "action_outcomes": _action_outcomes_dict(a),
                     "lexicon_size": len(a.lexicon),
                     "lexicon": {str(tok): ctx_map for tok, ctx_map in a.lexicon.items()},
                     "episodic_memories": [asdict(e) for e in a.memory.episodic[-25:]],
-                    "spatial_memories": [asdict(s) for s in list(a.memory.spatial_map.values())[:20]],
+                    "spatial_memories": sp_list,
+                    "spatial_summary": sp_summary,
                     "social_ties": _social_ties(a),
                     "local_perception": {
                         "vision_radius_m": perc.vision_radius_m,
@@ -588,8 +617,10 @@ class PersistenceEngine:
                 "original_cause_of_death": a.original_cause_of_death,
                 "death_penalty_record": a.death_penalty_record,
                 "brain_fingerprint": a.brain.weight_fingerprint() if a.brain is not None else None,
+                "neural_network": a.brain.telemetry_summary(max_buffer=exp_cap, include_death_penalties=True) if a.brain is not None else None,
                 "traits": asdict(a.traits),
                 "skills": {k: round(v, 3) for k, v in a.memory.skills.items()},
+                "action_outcomes": _action_outcomes_dict(a),
                 "lexicon_size": len(a.lexicon),
                 "episodic_memories": [asdict(e) for e in a.memory.episodic[-20:]],
                 "social_ties": _social_ties(a),
@@ -653,9 +684,179 @@ class PersistenceEngine:
             for (hx, hy), cnt in society.exchange_hubs.items()
         ]
 
-        brains_with_updates = [a.brain for a in living if a.brain is not None and a.brain.total_updates > 0]
+        all_living_brains = [a.brain for a in living if a.brain is not None]
+        brains_with_updates = [b for b in all_living_brains if b.total_updates > 0]
+
+        # Architecture spec from living brain or config
+        arch_summary: Dict[str, Any] = {
+            "architecture": "GRUCell_ActorCriticSignalValue",
+            "obs_dim": config.observation_dim if config else 36,
+            "hidden_dim": config.hidden_dim if config else 24,
+            "num_actions": config.num_actions if config else 18,
+            "num_signals": config.num_signal_tokens if config else 24,
+            "learning_rate": config.learning_rate if config else 0.005,
+            "backend": backend_name,
+            "optimizer": "Adam" if (TORCH_AVAILABLE and torch is not None) else "SGD_BPTT",
+            "parameter_count": all_living_brains[0].parameter_count() if all_living_brains else 0,
+            "experience_capacity": exp_cap,
+        }
+        if all_living_brains:
+            b0_info = all_living_brains[0].telemetry_summary(max_buffer=exp_cap)
+            arch_summary["optimizer"] = b0_info["optimizer"]
+            arch_summary["parameter_count"] = b0_info["parameter_count"]
+            arch_summary["backend"] = b0_info["backend"]
+
+        # Aggregate learned action outcomes across living agents
+        outcome_agg: Dict[str, Dict[str, float]] = {}
+        for a in living:
+            for act_name, entry in a.memory.action_outcomes.items():
+                cnt = float(entry.get("count", 0.0))
+                rew = float(entry.get("ema_reward", 0.0))
+                if cnt <= 0:
+                    continue
+                slot = outcome_agg.setdefault(act_name, {"trials": 0.0, "weighted_sum": 0.0, "agents": 0.0})
+                slot["trials"] += cnt
+                slot["weighted_sum"] += rew * cnt
+                slot["agents"] += 1.0
+        learned_action_outcomes = [
+            {
+                "action": act_name,
+                "total_trials": int(round(vals["trials"])),
+                "weighted_avg_reward": round(vals["weighted_sum"] / max(1.0, vals["trials"]), 4),
+                "agents_count": int(vals["agents"]),
+            }
+            for act_name, vals in outcome_agg.items()
+        ]
+        learned_action_outcomes.sort(key=lambda item: (-item["weighted_avg_reward"], -item["total_trials"]))
+
+        # Aggregate population skills summary across living agents
+        skill_keys = sorted({k for a in living for k in a.memory.skills.keys()})
+        population_skills_summary: List[dict] = []
+        for sk in skill_keys:
+            vals = [(a.agent_id, float(a.memory.skills.get(sk, 0.0))) for a in living]
+            if not vals:
+                continue
+            top_aid, top_val = max(vals, key=lambda kv: (kv[1], -kv[0]))
+            avg_val = sum(v for _, v in vals) / len(vals)
+            trained_cnt = sum(1 for _, v in vals if v > 0.05)
+            population_skills_summary.append({
+                "skill": sk,
+                "avg": round(avg_val, 4),
+                "max": round(top_val, 4),
+                "trained_agents_count": trained_cnt,
+                "top_agent_id": top_aid if top_val > 0 else None,
+            })
+        population_skills_summary.sort(key=lambda item: (-item["avg"], -item["max"], item["skill"]))
+
+        # Aggregate trust & distrust network across living agents
+        total_ties = 0
+        trusted_ties = 0
+        distrusted_ties = 0
+        neutral_ties = 0
+        trust_sum = 0.0
+        fam_sum = 0.0
+        incoming_trust: Dict[int, List[float]] = {}
+        for a in living:
+            known_ids = set(a.memory.familiarity.keys()) | set(a.memory.trust.keys())
+            for oid in known_ids:
+                t_val = float(a.memory.trust.get(oid, 0.0))
+                f_val = float(a.memory.familiarity.get(oid, 0.0))
+                total_ties += 1
+                trust_sum += t_val
+                fam_sum += f_val
+                if t_val > 0.15:
+                    trusted_ties += 1
+                elif t_val < -0.15:
+                    distrusted_ties += 1
+                else:
+                    neutral_ties += 1
+                incoming_trust.setdefault(oid, []).append(t_val)
+
+        top_trusted_agents = []
+        top_distrusted_agents = []
+        for oid, t_list in incoming_trust.items():
+            avg_t = sum(t_list) / len(t_list)
+            tr_cnt = sum(1 for v in t_list if v > 0.15)
+            dis_cnt = sum(1 for v in t_list if v < -0.15)
+            if tr_cnt > 0:
+                top_trusted_agents.append({
+                    "agent_id": oid,
+                    "incoming_trusted_count": tr_cnt,
+                    "avg_incoming_trust": round(avg_t, 3),
+                })
+            if dis_cnt > 0:
+                top_distrusted_agents.append({
+                    "agent_id": oid,
+                    "incoming_distrusted_count": dis_cnt,
+                    "avg_incoming_trust": round(avg_t, 3),
+                })
+        top_trusted_agents.sort(key=lambda r: (-r["incoming_trusted_count"], -r["avg_incoming_trust"]))
+        top_distrusted_agents.sort(key=lambda r: (-r["incoming_distrusted_count"], r["avg_incoming_trust"]))
+
+        trust_network_summary = {
+            "total_ties": total_ties,
+            "trusted_ties": trusted_ties,
+            "distrusted_ties": distrusted_ties,
+            "neutral_ties": neutral_ties,
+            "avg_trust": round(trust_sum / max(1, total_ties), 4) if total_ties else 0.0,
+            "avg_familiarity": round(fam_sum / max(1, total_ties), 4) if total_ties else 0.0,
+            "top_trusted_agents": top_trusted_agents[:8],
+            "top_distrusted_agents": top_distrusted_agents[:8],
+        }
+
+        # Aggregate spatial knowledge & hazard map across living agents
+        spatial_totals: Dict[str, int] = {}
+        hazard_cells: Dict[int, dict] = {}
+        for a in living:
+            for tr in a.memory.spatial_map.values():
+                k = str(tr.kind)
+                spatial_totals[k] = spatial_totals.get(k, 0) + 1
+                if k == "hazard":
+                    hz = hazard_cells.setdefault(
+                        tr.cell_idx,
+                        {"x": round(tr.x, 1), "y": round(tr.y, 1), "mentions": 0, "max_severity": 0.0},
+                    )
+                    hz["mentions"] += 1
+                    hz["max_severity"] = round(max(hz["max_severity"], float(tr.richness)), 2)
+        hazard_sample = sorted(hazard_cells.values(), key=lambda h: (-h["mentions"], -h["max_severity"]))[:12]
+        spatial_knowledge_summary = {
+            "totals_by_kind": spatial_totals,
+            "hazard_zones_sample": hazard_sample,
+        }
+
+        # Behavioral distribution & average traits/vitals across living agents
+        action_dist: Dict[str, int] = {}
+        n_liv = max(1, len(living))
+        trait_sums = {"boldness": 0.0, "empathy": 0.0, "curiosity": 0.0, "aggression": 0.0, "cooperation": 0.0}
+        vital_sums = {"health": 0.0, "hunger": 0.0, "thirst": 0.0, "energy": 0.0, "injury": 0.0, "disease_load": 0.0}
+        for a in living:
+            act_k = str(a.last_action or "idle")
+            action_dist[act_k] = action_dist.get(act_k, 0) + 1
+            trait_sums["boldness"] += a.traits.boldness
+            trait_sums["empathy"] += a.traits.empathy
+            trait_sums["curiosity"] += a.traits.curiosity
+            trait_sums["aggression"] += a.traits.aggression
+            trait_sums["cooperation"] += a.traits.cooperation
+            vital_sums["health"] += a.health
+            vital_sums["hunger"] += a.hunger
+            vital_sums["thirst"] += a.thirst
+            vital_sums["energy"] += a.energy
+            vital_sums["injury"] += a.injury
+            vital_sums["disease_load"] += a.disease_load
+
+        action_distribution = dict(sorted(action_dist.items(), key=lambda kv: (-kv[1], kv[0])))
+        trait_averages = {k: round(v / n_liv, 3) for k, v in trait_sums.items()} if living else {k: 0.0 for k in trait_sums}
+        vitals_averages = {k: round(v / n_liv, 3) for k, v in vital_sums.items()} if living else {k: 0.0 for k in vital_sums}
+
+        # Neural network population stats + leaderboard
+        brain_summaries = [
+            b.telemetry_summary(max_buffer=exp_cap, include_death_penalties=False)
+            for b in all_living_brains
+        ]
+        updated_summaries = [s for s in brain_summaries if s["total_updates"] > 0]
+
         learning_telemetry = {
-            "living_brains_count": sum(1 for a in living if a.brain is not None),
+            "living_brains_count": len(all_living_brains),
             "agents_with_updates": len(brains_with_updates),
             "avg_updates_per_agent": round(
                 sum(b.total_updates for b in brains_with_updates) / max(1, len(brains_with_updates)),
@@ -677,11 +878,44 @@ class PersistenceEngine:
                 sum(b.mean_recent_reward for b in brains_with_updates) / max(1, len(brains_with_updates)),
                 4,
             ) if brains_with_updates else 0.0,
+            "mean_value_loss": round(
+                sum(s["value_loss"] for s in updated_summaries) / max(1, len(updated_summaries)),
+                5,
+            ) if updated_summaries else 0.0,
+            "min_policy_entropy": round(min((s["policy_entropy"] for s in updated_summaries), default=0.0), 4),
+            "max_policy_entropy": round(max((s["policy_entropy"] for s in updated_summaries), default=0.0), 4),
+            "avg_weight_l2_norm": round(
+                sum(s["weight_l2_norm"] for s in brain_summaries) / max(1, len(brain_summaries)),
+                4,
+            ) if brain_summaries else 0.0,
+            "avg_hidden_l2_norm": round(
+                sum(s["hidden_state_l2_norm"] for s in brain_summaries) / max(1, len(brain_summaries)),
+                4,
+            ) if brain_summaries else 0.0,
+            "total_experience_items": sum(s["experience_buffer_len"] for s in brain_summaries),
+            "architecture": arch_summary,
+            "learned_action_outcomes": learned_action_outcomes,
+            "population_skills_summary": population_skills_summary,
+            "trust_network_summary": trust_network_summary,
+            "spatial_knowledge_summary": spatial_knowledge_summary,
+            "action_distribution": action_distribution,
+            "trait_averages": trait_averages,
+            "vitals_averages": vitals_averages,
+            "top_neural_agents": [
+                {
+                    "agent_id": a.agent_id,
+                    **(a.brain.telemetry_summary(max_buffer=exp_cap, include_death_penalties=False)),
+                }
+                for a in sorted(
+                    [ag for ag in living if ag.brain is not None],
+                    key=lambda ag: (-ag.brain.total_updates, -ag.brain.mean_recent_reward, ag.agent_id),  # type: ignore[union-attr]
+                )[:12]
+            ],
         }
 
         rec_out = dict(recovery_state) if recovery_state else {
             "auto_recover_on_extinction": config.auto_recover_on_extinction if config else True,
-            "recovery_founder_count": config.recovery_founder_count if config else 4,
+            "recovery_founder_count": config.recovery_founder_count if config else 60,
             "recovery_cycle_count": 0,
             "current_cycle_number": 1,
             "current_cycle_start_tick": 0,

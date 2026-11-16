@@ -186,6 +186,38 @@ export interface TrainingStatsOnAgent {
   status: string;
 }
 
+export interface ActionOutcomeStat {
+  count: number;
+  ema_reward: number;
+}
+
+export interface AgentNeuralNetworkInfo {
+  architecture: string;
+  obs_dim: number;
+  hidden_dim: number;
+  num_actions: number;
+  num_signals: number;
+  learning_rate: number;
+  backend: string;
+  optimizer: string;
+  parameter_count: number;
+  total_updates: number;
+  experience_buffer_len: number;
+  experience_buffer_capacity: number;
+  last_loss: number;
+  value_loss: number;
+  mean_td_error: number;
+  policy_entropy: number;
+  mean_recent_reward: number;
+  weight_l2_norm: number;
+  hidden_state_l2_norm: number;
+  hidden_state_mean_abs: number;
+  weight_fingerprint: string;
+  recent_contexts: Record<string, number>;
+  death_penalty_count: number;
+  death_penalty_history?: Array<Record<string, unknown>>;
+}
+
 export interface LivingAgentFull {
   agent_id: number;
   sex: 'F' | 'M' | string;
@@ -219,14 +251,17 @@ export interface LivingAgentFull {
   original_cause_of_death: string | null;
   death_penalty_record: DeathPenaltyRecord | null;
   brain_fingerprint: string | null;
+  neural_network: AgentNeuralNetworkInfo | null;
   training_stats?: TrainingStatsOnAgent | null;
   traits: AgentTraits;
   inventory: Record<string, number>;
   skills: Record<string, number>;
+  action_outcomes: Record<string, ActionOutcomeStat>;
   lexicon_size: number;
   lexicon: Record<string, Record<string, number>>;
   episodic_memories: EpisodicMemoryItem[];
   spatial_memories: SpatialMemoryItem[];
+  spatial_summary: Record<string, number>;
   social_ties: SocialTieItem[];
   local_perception: LocalPerceptionData;
 }
@@ -255,9 +290,11 @@ export interface DeceasedAgentArchive {
   original_cause_of_death: string | null;
   death_penalty_record: DeathPenaltyRecord | null;
   brain_fingerprint: string | null;
+  neural_network: AgentNeuralNetworkInfo | null;
   training_stats?: TrainingStatsOnAgent | null;
   traits: AgentTraits;
   skills: Record<string, number>;
+  action_outcomes: Record<string, ActionOutcomeStat>;
   lexicon_size: number;
   episodic_memories: EpisodicMemoryItem[];
   social_ties: SocialTieItem[];
@@ -483,6 +520,77 @@ export interface RecoveryStateData {
   population_recovery_history: PopulationRecoveryCycleItem[];
 }
 
+export interface AggregatedActionOutcomeItem {
+  action: string;
+  total_trials: number;
+  weighted_avg_reward: number;
+  agents_count: number;
+}
+
+export interface SkillSummaryItem {
+  skill: string;
+  avg: number;
+  max: number;
+  trained_agents_count: number;
+  top_agent_id: number | null;
+}
+
+export interface TrustNetworkAgentStat {
+  agent_id: number;
+  incoming_trusted_count?: number;
+  incoming_distrusted_count?: number;
+  avg_incoming_trust: number;
+}
+
+export interface TrustNetworkSummary {
+  total_ties: number;
+  trusted_ties: number;
+  distrusted_ties: number;
+  neutral_ties: number;
+  avg_trust: number;
+  avg_familiarity: number;
+  top_trusted_agents: TrustNetworkAgentStat[];
+  top_distrusted_agents: TrustNetworkAgentStat[];
+}
+
+export interface SpatialHazardSummaryItem {
+  x: number;
+  y: number;
+  mentions: number;
+  max_severity: number;
+}
+
+export interface SpatialKnowledgeSummary {
+  totals_by_kind: Record<string, number>;
+  hazard_zones_sample: SpatialHazardSummaryItem[];
+}
+
+export interface NeuralArchitectureSpec {
+  architecture: string;
+  obs_dim: number;
+  hidden_dim: number;
+  num_actions: number;
+  num_signals: number;
+  learning_rate: number;
+  backend: string;
+  optimizer: string;
+  parameter_count: number;
+  experience_capacity: number;
+}
+
+export interface NeuralAgentRankItem extends AgentNeuralNetworkInfo {
+  agent_id: number;
+}
+
+export interface VitalsAverages {
+  health: number;
+  hunger: number;
+  thirst: number;
+  energy: number;
+  injury: number;
+  disease_load: number;
+}
+
 export interface LearningTelemetryData {
   living_brains_count: number;
   agents_with_updates: number;
@@ -491,6 +599,21 @@ export interface LearningTelemetryData {
   mean_policy_entropy: number;
   mean_loss: number;
   mean_recent_reward: number;
+  mean_value_loss: number;
+  min_policy_entropy: number;
+  max_policy_entropy: number;
+  avg_weight_l2_norm: number;
+  avg_hidden_l2_norm: number;
+  total_experience_items: number;
+  architecture: NeuralArchitectureSpec | null;
+  learned_action_outcomes: AggregatedActionOutcomeItem[];
+  population_skills_summary: SkillSummaryItem[];
+  trust_network_summary: TrustNetworkSummary;
+  spatial_knowledge_summary: SpatialKnowledgeSummary;
+  action_distribution: Record<string, number>;
+  trait_averages: AgentTraits;
+  vitals_averages: VitalsAverages;
+  top_neural_agents: NeuralAgentRankItem[];
 }
 
 export interface ResourceFunnel {
